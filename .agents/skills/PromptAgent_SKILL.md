@@ -39,15 +39,15 @@ Every prompt generated using this skill MUST follow the 5-part structure:
 
 | Command | Description |
 | :--- | :--- |
-| `/slash-polish` | Restructure a raw prompt into the standard 5-part format. |
-| `/slash-concept` | Generate 3 style variations and append to current day's project file. |
-| `/slash-ref` | Analyze a reference image to extract style/composition. |
-| `/slash-animate` | Create a video prompt with dynamic camera motion. |
-| `/slash-storyboard`| Create timecoded video prompts with SFX. |
-| `/slash-sequence` | Create a complete 3-act cinematic sequence. |
-| `/slash-texture` | Generate seamless material albedo map prompts. |
-| `/slash-render` | Generate 3D render prompts with studio lighting. |
-| `/slash-util` | Tasks like text insertion, expansion, or vector creation. |
+| `/polish` | Restructure a raw prompt into the standard 5-part format. |
+| `/concept` | Generate 3 style variations and append to current day's project file. |
+| `/ref` | Analyze a reference image to extract style/composition. |
+| `/animate` | Create a video prompt with dynamic camera motion. |
+| `/storyboard`| Create timecoded video prompts with SFX. |
+| `/sequence` | Create a complete 3-act cinematic sequence. |
+| `/texture` | Generate seamless material albedo map prompts. |
+| `/render` | Generate 3D render prompts with studio lighting. |
+| `/util` | Tasks like text insertion, expansion, or vector creation. |
 
 ## 📸 Multimodal Instructions (Reference Images)
 
@@ -61,3 +61,4 @@ Khi phân tích hình ảnh tham chiếu:
 - **Physical Logic**: Đảm bảo chuyển động camera khả thi về mặt vật lý.
 - **Output Format**: Luôn lưu kết quả prompt vào file Markdown theo cấu trúc ngày, đồng thời BẮT BUỘC phải mở file đó dưới dạng **Artifact** (Bằng cách set flag `IsArtifact: true` hoặc dùng UI của hệ thống) để đảm bảo User luôn có sẵn nút "Copy" trên giao diện Chat.
 - **Language**: Draft/giải thích bằng Tiếng Việt, nhưng **Prompt Final phải là Tiếng Anh**.
+

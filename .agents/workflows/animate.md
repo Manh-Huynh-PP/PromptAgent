@@ -1,10 +1,10 @@
 ---
-name: slash-animate
+name: animate
 description: Create a video prompt (Veo 3.1) incorporating dynamic camera movements from a reference image.
 ---
-# Workflow: Video Motion (!animate)
+# Workflow: Video Motion (/animate)
 
-This workflow is triggered when the user executes the command `/slash-animate` or `!animate [image_desc]`.
+This workflow is triggered when the user executes the command `/animate` or `/animate [image_desc]`.
 
 ## Execution Steps:
 1. **Define the Anchor**: Use the reference image or description as the Start Frame / End Frame.
@@ -13,3 +13,5 @@ This workflow is triggered when the user executes the command `/slash-animate` o
    - Add an "Identity Lock" to preserve the character/product appearance.
    - Add "rigid body" or "maintains perfect structural integrity" keywords to prevent morphing.
 4. **Output**: Output the complete video prompt for Veo 3.1 inside a code block.
+
+

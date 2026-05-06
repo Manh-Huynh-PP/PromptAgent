@@ -1,10 +1,10 @@
 ---
-name: slash-util
+name: util
 description: Generate specialized prompts for utilities (image expansion, sketching, vector creation, text insertion).
 ---
-# Workflow: Utilities (!util)
+# Workflow: Utilities (/util)
 
-This workflow is triggered when the user executes the command `/slash-util` or `!util [task]`.
+This workflow is triggered when the user executes the command `/util` or `/util [task]`.
 
 ## Execution Steps:
 1. **Identify Utility**: Classify the request category (Vector, Sketch, Typography, Image Expansion).
@@ -14,3 +14,5 @@ This workflow is triggered when the user executes the command `/slash-util` or `
    - **Sketch**: Add "rough pencil sketch", "charcoal drawing", "architectural blueprint".
    - **Expand/Outpaint**: Use expanded context that seamlessly blends with the original image.
 3. **Output**: Return the specialized custom prompt.
+
+

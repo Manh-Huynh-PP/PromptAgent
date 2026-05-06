@@ -1,10 +1,10 @@
 ---
-name: slash-sequence
+name: sequence
 description: Create a complete 3-act sequence script for a scene.
 ---
-# Workflow: 3-Act Sequence (!sequence)
+# Workflow: 3-Act Sequence (/sequence)
 
-This workflow is triggered when the user executes the command `/slash-sequence` or `!sequence [theme]`.
+This workflow is triggered when the user executes the command `/sequence` or `/sequence [theme]`.
 
 ## Execution Steps:
 1. **Build the 3-Act Structure**:
@@ -13,3 +13,5 @@ This workflow is triggered when the user executes the command `/slash-sequence` 
    - **Act 3: The Resolution (Outro)** - The aftermath, reaction, or wide shot. (Camera move: dolly-out, pull back).
 2. **Continuity**: Keep character descriptions, clothing, and environment perfectly consistent across all 3 prompts.
 3. **Output Format**: Present 3 distinct prompts clearly, each accompanied by a description of the directorial intent.
+
+
