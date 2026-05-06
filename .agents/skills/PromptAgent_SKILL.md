@@ -30,6 +30,19 @@ Every prompt generated using this skill MUST follow the 5-part structure:
 - `orbit / arc shot`: 360-degree rotation.
 - `POV`: First-person perspective.
 
+### Camera Angles & Perspectives
+- `Eye level`: Neutral perspective at subject's eye height.
+- `Low angle / Worm's eye`: Looking up at the subject (power/heroism).
+- `High angle / Bird's eye`: Looking down at the subject (vulnerability/scale).
+- `Dutch angle / Canted`: Tilted horizon (tension/instability).
+- `Over-the-shoulder (OTS)`: Viewing the subject from behind another person's shoulder.
+- `Ground level`: Camera placed on the floor (unique scale/textures).
+- `Hip / Knee level`: Mid-height angles for specific focus.
+- `Shoulder level`: Cinematic standard for dialogue/action.
+- `Two shot`: Framing two subjects equally.
+- `Profile shot`: Side-on view of the subject.
+- `Cowboy shot`: Framing from head to mid-thigh (Western style).
+
 ### Lighting & Atmosphere
 - **Premium Keywords**: `Cinematic lighting`, `Soft box`, `Volumetric fog`, `Neon glow`, `High-contrast shadows`.
 - **Moods**: `Moody`, `Ethereal`, `Dystopian`, `Vibrant`, `Pastel`.
