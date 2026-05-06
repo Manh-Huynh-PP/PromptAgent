@@ -31,4 +31,6 @@ Hệ thống tuân thủ nghiêm ngặt quy trình:
 2. Tuân thủ các quy tắc trong `.agents/Rules/Rules.md`.
 
 ---
-*Developed by PromptAgent Team*
+*Developed by **Manh Huynh***
+🌐 Website: [manhhuynh.work](https://manhhuynh.work)
+📧 Email: [manhhuynh3@gmail.com](mailto:manhhuynh3@gmail.com)
