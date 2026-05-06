@@ -17,6 +17,9 @@ Sử dụng các lệnh sau trong khung chat để kích hoạt các quy trình 
 - `/slash-animate`: Tạo video prompt với chuyển động camera từ ảnh gốc.
 - `/slash-storyboard`: Tạo kịch bản video phân đoạn kèm hiệu ứng âm thanh (SFX).
 
+> [!TIP]
+> **Khuyến khích**: Hãy sử dụng extension [Markdown-ext](https://github.com/manhhuynh-designer/Markdown-ext) để có trải nghiệm tốt nhất. Extension này giúp bạn xem trước định dạng Markdown và có nút "Copy" chuyên dụng để sao chép hoặc điều chỉnh prompt cực kỳ nhanh chóng.
+
 ## 📂 Quy tắc lưu trữ
 Hệ thống tuân thủ nghiêm ngặt quy trình:
 1. Dự án được lưu trong `Projects/` (đã được cấu hình `.gitignore` để bảo mật).
