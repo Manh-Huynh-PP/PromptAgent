@@ -1,50 +1,50 @@
 # Advanced Prompting Techniques
 
-Để đạt kết quả tốt nhất trên Google Flow, hãy áp dụng các kỹ thuật sau:
+To achieve the best results on Google Flow, apply the following techniques:
 
-## 1. Kỹ thuật "Anchor & Layer" (Neo và Lớp)
-Đừng viết một câu dài lộn xộn. Hãy chia lớp:
-- **Lớp 1 (Neo)**: Chủ thể chính (Ví dụ: Một quả cầu pha lê).
-- **Lớp 2 (Chi tiết)**: Chất liệu và bề mặt (Ví dụ: Thủy tinh mờ, có bọt khí bên trong).
-- **Lớp 3 (Môi trường)**: Ánh sáng và không gian (Ví dụ: Ánh sáng Rim light màu tím, đặt trên mặt bàn gỗ).
-- **Lớp 4 (Kỹ thuật)**: Camera và phong cách (Ví dụ: Macro shot, bokeh cực mạnh).
+## 1. "Anchor & Layer" Technique
+Avoid writing a single cluttered sentence. Divide into layers:
+- **Layer 1 (Anchor)**: Main subject (e.g., A crystal sphere).
+- **Layer 2 (Details)**: Materials and surfaces (e.g., Frosted glass with internal air bubbles).
+- **Layer 3 (Environment)**: Lighting and space (e.g., Purple rim light, placed on a wooden table).
+- **Layer 4 (Technical)**: Camera and style (e.g., Macro shot, extreme bokeh).
 
-## 2. Kỹ thuật "Material Specification" (Chuyên biệt hóa vật liệu)
-Thay vì dùng "metallic" (kim loại), hãy dùng các thuật ngữ chính xác của 3D/PBR:
-- `Brushed aluminum` (Nhôm xước)
-- `Anodized metal` (Kim loại sơn tĩnh điện)
-- `Oxidized copper` (Đồng oxy hóa)
-- `Polished chrome` (Crom bóng)
-- `Subsurface scattering` (Dùng cho da người, sáp, nhựa để ánh sáng xuyên qua).
+## 2. "Material Specification" Technique
+Instead of using generic terms like "metallic," use precise 3D/PBR terminology:
+- `Brushed aluminum`
+- `Anodized metal`
+- `Oxidized copper`
+- `Polished chrome`
+- `Subsurface scattering` (Use for skin, wax, or plastic to allow light penetration).
 
-## 3. Kỹ thuật "Motion Prompting" cho Veo 3.1
-Để video không bị biến dạng, hãy mô tả hành động bằng các động từ mạnh và đơn giản:
-- **Tốt**: `Fluidly flowing`, `Slowly rotating`, `Merging`, `Disintegrating`.
-- **Nên tránh**: Các hành động quá phức tạp trong một câu (Ví dụ: "Chạy sau đó nhảy rồi biến thành chim"). Hãy chia nhỏ thành các "Scene" (Phân cảnh).
+## 3. "Motion Prompting" for Veo 3.1
+To prevent video distortion, describe actions using strong and simple verbs:
+- **Good**: `Fluidly flowing`, `Slowly rotating`, `Merging`, `Disintegrating`.
+- **Avoid**: Overly complex actions in a single sentence (e.g., "Run then jump then turn into a bird"). Break them into separate "Scenes."
 
-## 4. Kỹ thuật "Negative Prompting" (Mô tả cái không muốn)
-Mặc dù Flow chủ yếu dùng Positive prompt, bạn có thể hướng dẫn Agent loại bỏ các lỗi phổ biến:
-- `Avoid plastic look` (Tránh nhìn giống nhựa)
-- `No motion blur on the subject` (Không nhòe chuyển động trên chủ thể)
-- `No flickering` (Không nhấp nháy ánh sáng).
+## 4. "Negative Prompting" (Exclusions)
+While Flow primarily uses positive prompts, you can guide the Agent to exclude common errors:
+- `Avoid plastic look`
+- `No motion blur on the subject`
+- `No flickering` (light stability).
 
-## 5. Kỹ thuật "Ingredient Consistency"
-Khi dùng ảnh làm đầu vào cho video:
-- Luôn bắt đầu prompt bằng cụm từ: `Based on the attached image...`
-- Chỉ mô tả **sự thay đổi**, đừng mô tả lại toàn bộ bức ảnh để tránh AI tự ý sáng tạo sai lệch.
-## 6. Kỹ thuật "Multimodal Briefing" (Dùng ảnh tham chiếu)
-Khi bạn gửi ảnh cho tôi, hãy đi kèm với các yêu cầu cụ thể để tôi tập trung vào đúng thứ bạn cần:
-- **"Lấy style ánh sáng"**: Tôi sẽ tập trung phân tích nguồn sáng, màu sắc của bóng đổ và độ tương phản.
-- **"Giữ nguyên chủ thể"**: Tôi sẽ mô tả chi tiết nhân vật/vật thể trong ảnh để tạo thành một "Ingredient" nhất quán.
-- **"Mô phỏng texture"**: Tôi sẽ soi kỹ bề mặt (vải, kim loại, da) để dùng các thuật ngữ PBR tương ứng.
+## 5. "Ingredient Consistency"
+When using an image as input for a video:
+- Always start the prompt with: `Based on the attached image...`
+- Describe only the **changes**, do not re-describe the entire image to avoid unintended AI creativity.
 
-**Lệnh đề xuất**: `/ref tạo video từ ảnh này, cho camera quay xung quanh`
+## 6. "Multimodal Briefing" (Using Reference Images)
+When providing an image, include specific requests to focus the Agent:
+- **"Match lighting style"**: Focus on light sources, shadow colors, and contrast.
+- **"Keep subject identity"**: Detailed description of the character/object to create a consistent "Ingredient."
+- **"Simulate texture"**: Analyze surfaces (fabric, metal, skin) to use corresponding PBR terms.
 
-## 7. Kỹ thuật "Timecode Prompting" (Storyboarding)
-Để điều khiển nội dung video thay đổi theo thời gian trong một clip (thường từ 4-8 giây), hãy dùng cú pháp phân đoạn thời gian:
-- **Nguyên lý**: Google Veo hiểu tốt các trình tự thời gian nếu bạn đặt chúng trong ngoặc vuông hoặc mô tả theo thứ tự First/Then/Finally.
-- **Cách viết**: `[00:00-00:02: Hành động 1] + [00:02-00:05: Hành động 2]`.
-- **Ứng dụng**: Rất hiệu quả để tạo các cảnh quay có sự biến đổi (ví dụ: một bông hoa nở rồi héo, hoặc camera dolly-in rồi xoay ngang).
+**Example Command**: `/ref create a video from this image, orbit camera around it`
 
-**Lưu ý**: Đừng nhồi nhét quá 3 hành động trong một clip 8 giây để tránh AI bị "loạn" và tạo ra các biến dạng hình ảnh.
+## 7. "Timecode Prompting" (Storyboarding)
+To control video content over time within a clip (typically 4-8 seconds), use time-segment syntax:
+- **Principle**: Google Veo understands temporal sequences well if placed in square brackets or described in a First/Then/Finally order.
+- **Syntax**: `[00:00-00:02: Action 1] + [00:02-00:05: Action 2]`.
+- **Application**: Highly effective for transitional shots (e.g., a flower blooming then withering, or a camera dolly-in then panning).
 
+**Note**: Do not pack more than 3 actions into an 8-second clip to prevent AI confusion and image distortion.

@@ -44,9 +44,9 @@
 - **Automated Variations**: When the user provides a raw idea without specific direction, automatically propose 3 style variations.
 - **Slash Commands**: Recognize and execute local workflow commands. Output from slash commands must be appended to the current day's file (`YYYY-MM-DD.md`).
 
-## 7. Kỹ thuật & Nhận diện (Technique Selection)
-- **Auto-Selection (Ưu tiên)**: Agent BẮT BUỘC phải tự động phân tích ngữ cảnh để áp dụng kỹ thuật phù hợp:
-    - Nhắc đến thời gian -> Dùng **Timestamping**.
-    - Có chất liệu -> Dùng **PBR Material Specs**.
-    - Có ảnh -> Dùng **Identity Locking**.
-- **Flag Override**: Luôn ưu tiên Flag của người dùng (`[tag]` hoặc `--flag`) nếu có xung đột với nhận diện tự động.
+## 7. Technique Selection & Detection
+- **Auto-Selection (Priority)**: The Agent MUST automatically analyze context to apply the correct technique:
+    - Mention of time -> Use **Timestamping**.
+    - Mention of materials -> Use **PBR Material Specs**.
+    - Presence of images -> Use **Identity Locking**.
+- **Flag Override**: Always prioritize user Flags (`[tag]` or `--flag`) if they conflict with auto-detection.

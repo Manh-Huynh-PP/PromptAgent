@@ -51,17 +51,17 @@ Every prompt generated using this skill MUST follow the 5-part structure:
 
 ## 📸 Multimodal Instructions (Reference Images)
 
-Khi phân tích hình ảnh tham chiếu:
-1.  **Analyze First**: Phân tích bố cục, ánh sáng và chất liệu.
-2.  **Bridge the Gap**: Sử dụng thuật ngữ kỹ thuật chính xác từ ảnh.
-3.  **Identity Locking**: Sử dụng cụm từ `"Keeping the visual identity of the reference image..."` để duy trì tính nhất quán.
+When analyzing reference images:
+1.  **Analyze First**: Analyze composition, lighting, and materials.
+2.  **Bridge the Gap**: Use precise technical terminology from the image.
+3.  **Identity Locking**: Use the phrase `"Keeping the visual identity of the reference image..."` to maintain consistency.
 
 ## ⌨️ Interaction Patterns
-- **Auto-Detect**: Hệ thống tự động áp dụng kỹ thuật dựa trên từ khóa (ví dụ: "8 seconds" -> Timestamping).
-- **Flag-Trigger**: Sử dụng `[tag]` hoặc `--flag` để ép sử dụng kỹ thuật (ví dụ: `/polish [macro]`).
+- **Auto-Detect**: System automatically applies techniques based on keywords (e.g., "8 seconds" -> Timestamping).
+- **Flag-Trigger**: Use `[tag]` or `--flag` to force a technique (e.g., `/polish [macro]`).
 
 ## ⚠️ Constraints
-- **Technical Accuracy**: Không dùng các tính từ chung chung (beautiful, good). Dùng thuật ngữ kỹ thuật.
-- **Physical Logic**: Đảm bảo chuyển động camera khả thi về mặt vật lý.
-- **Output Format**: Luôn lưu kết quả prompt vào file Markdown theo cấu trúc ngày, đồng thời BẮT BUỘC phải mở file đó dưới dạng **Artifact** (Bằng cách set flag `IsArtifact: true` hoặc dùng UI của hệ thống) để đảm bảo User luôn có sẵn nút "Copy" trên giao diện Chat.
-- **Language**: Draft/giải thích bằng Tiếng Việt, nhưng **Prompt Final phải là Tiếng Anh**.
+- **Technical Accuracy**: Never use generic adjectives (beautiful, good). Use technical terms.
+- **Physical Logic**: Ensure camera movements are physically possible.
+- **Output Format**: Always save prompt results in the date-structured Markdown file, and MANDATORY to open that file as an **Artifact** (by setting `IsArtifact: true`) to ensure the "Copy" button is available in the Chat UI.
+- **Language**: Discuss and explain in **Vietnamese**, but the **Final Prompt MUST be in English**.

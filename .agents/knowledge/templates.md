@@ -1,6 +1,6 @@
 # Prompt Templates Library
 
-## 1. Texture Flat Color (Dùng trong 3D)
+## 1. Texture Flat Color (For 3D)
 **Formula**: `Top-down view + [Material] + [Texture Type] + Flat lighting + Albedo/Diffuse focus + Seamless/Tileable cue`
 
 **Example**:
@@ -12,13 +12,13 @@
 **Example**:
 > "A futuristic drone hovering in a dark hangar. Rim lighting emphasizing the metallic edges, soft global illumination, volumetric light rays. Anodized aluminum texture, carbon fiber details. High-fidelity 3D render style, Octane render aesthetic, sharp focus."
 
-## 3. Image-to-Video (Giữ chi tiết từ ảnh)
+## 3. Image-to-Video (Preserving details from image)
 **Formula**: `Reference to [Image Ingredient] + [Subtle Action] + [Camera Motion] + "Maintain all visual details"`
 
 **Example**:
 > "Using the provided reference image of the robot, initiate a slow dolly-in shot. The robot's eyes slowly blink once. Maintain all textures, lighting, and background details from the original image. Subtle motion in the floating dust motes."
 
-## 4. Video from Components (Tạo video từ thành phần)
+## 4. Video from Components (Assembly/Exploded View)
 **Formula**: `[Component List] + [Interaction/Assembly] + [Cinematic Motion] + Style Consistency`
 
 **Example**:
@@ -32,13 +32,7 @@
 **Example**:
 > "Cinematic 8-second shot in a dense jungle. [00:00-00:02: A slow dolly-in towards a hidden temple gate.] [00:02-00:05: The stone gate slowly grinds open, revealing a bright golden light.] [00:05-00:08: A whip-pan right to reveal a character's shocked expression.] High-contrast lighting, jungle bird sounds, epic orchestral swell."
 
-## 6. Static Storyboard Frame (Imagen 4)
-**Formula**: `Storyboard frame + [Sequence/Scene Context] + [Subject & Action] + [Camera Angle] + Storyboard aesthetic (optional)`
-
-**Example**:
-> "Storyboard frame, Scene 3. A close-up over-the-shoulder shot of a detective looking at a glowing holographic map. High contrast, cinematic lighting. Rough charcoal sketch style, monochromatic with a single red accent color."
-
-## 6. Static Storyboard Frame (Tạo hình tĩnh kịch bản)
+## 6. Static Storyboard Frame (Concept Art Style)
 **Formula**: `Storyboard frame + [Sequence/Scene Context] + [Subject] + [Action] + Cinematic lighting + Rough concept art style`
 
 **Example**:
