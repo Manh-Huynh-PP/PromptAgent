@@ -1,0 +1,12 @@
+# Ignore Projects folder as per user requirement
+Projects/
+
+# Ensure .agents folder is tracked (git tracks folders by default if they have content)
+# But we can be explicit if needed
+!.agents/
+
+# Ignore other common items
+.DS_Store
+Thumbs.db
+node_modules/
+.env
