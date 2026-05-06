@@ -32,6 +32,11 @@ Hệ thống tuân thủ nghiêm ngặt quy trình:
 2. Mỗi ngày làm việc tạo ra một file mới `YYYY-MM-DD.md` (Clone if Outdated).
 3. Mỗi file prompt đều chứa YAML Metadata để Agent dễ dàng truy xuất ngữ cảnh.
 
+### 📚 Tài liệu tham khảo
+Dự án này được xây dựng dựa trên các hướng dẫn chính thức từ Google Cloud:
+- [Ultimate Prompting Guide for Nano Banana](https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-nano-banana)
+- [Ultimate Prompting Guide for Veo 3.1](https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-veo-3-1)
+
 ---
 
 ## English
@@ -63,6 +68,11 @@ The system strictly follows these procedures:
 ### ⚙️ Installation
 1. Ensure required Skills are installed in the `.agents/skills/` directory.
 2. Adhere to the rules defined in `.agents/Rules/Rules.md`.
+
+### 📚 References
+This project is built based on official guides from Google Cloud:
+- [Ultimate Prompting Guide for Nano Banana](https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-nano-banana)
+- [Ultimate Prompting Guide for Veo 3.1](https://cloud.google.com/blog/products/ai-machine-learning/ultimate-prompting-guide-for-veo-3-1)
 
 ---
 *Developed by **Manh Huynh***
