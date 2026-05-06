@@ -33,4 +33,4 @@ Hệ thống tuân thủ nghiêm ngặt quy trình:
 ---
 *Developed by **Manh Huynh***
 🌐 Website: [manhhuynh.work](https://manhhuynh.work)
-📧 Email: [manhhuynh3@gmail.com](mailto:manhhuynh3@gmail.com)
+📧 Email: [contact@manhhuynh.work](mailto:contact@manhhuynh.work)
