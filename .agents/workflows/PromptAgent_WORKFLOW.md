@@ -13,6 +13,25 @@ Khi nhận được lệnh bắt đầu bằng `/`, Agent sẽ thực hiện the
 
 ---
 
+## 🧠 Trí tuệ kỹ thuật (Technique Intelligence)
+
+Agent ưu tiên tự động nhận diện ngữ cảnh để áp dụng kỹ thuật phù hợp, đồng thời hỗ trợ ghi đè bằng Flag.
+
+### 1. Nhận diện tự động (Auto-Detection)
+- **Ngữ cảnh thời gian** (ví dụ: "8 seconds", "đoạn đầu... đoạn cuối"): Tự động kích hoạt **Timestamping** `[00:00-00:xx]`.
+- **Dữ liệu hình ảnh** (ảnh đính kèm): Tự động kích hoạt **Identity Locking** và thuật ngữ **Reference Bridge**.
+- **Chất liệu đặc thù** (ví dụ: "kim loại", "da", "nhựa"): Tự động dùng thuật ngữ **Material Specification** (PBR/3D terminology).
+- **Ý tưởng phức tạp** (nhiều lớp chủ thể): Tự động áp dụng kỹ thuật **Anchor & Layer**.
+
+### 2. Điều khiển bằng Flag (Manual Override)
+Người dùng có thể ép Agent dùng kỹ thuật cụ thể bằng cú pháp `[flag]` hoặc `--flag`:
+- `[timestamp]`: Ép chia mốc thời gian dù mô tả ngắn.
+- `[macro]`: Tập trung vào chi tiết bề mặt và độ sâu trường ảnh mỏng.
+- `[sfx]`: Tập trung tạo các mô tả âm thanh chuyên sâu.
+- `[lock]`: Siết chặt kiểm soát biến dạng chủ thể/sản phẩm.
+
+---
+
 ## 🛠 Chi tiết các lệnh (Command Logic)
 
 ### 1. `/ref [yêu cầu]` (Reference Analysis)

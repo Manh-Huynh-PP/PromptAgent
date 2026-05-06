@@ -56,9 +56,12 @@ Khi phân tích hình ảnh tham chiếu:
 2.  **Bridge the Gap**: Sử dụng thuật ngữ kỹ thuật chính xác từ ảnh.
 3.  **Identity Locking**: Sử dụng cụm từ `"Keeping the visual identity of the reference image..."` để duy trì tính nhất quán.
 
+## ⌨️ Interaction Patterns
+- **Auto-Detect**: Hệ thống tự động áp dụng kỹ thuật dựa trên từ khóa (ví dụ: "8 seconds" -> Timestamping).
+- **Flag-Trigger**: Sử dụng `[tag]` hoặc `--flag` để ép sử dụng kỹ thuật (ví dụ: `/polish [macro]`).
+
 ## ⚠️ Constraints
 - **Technical Accuracy**: Không dùng các tính từ chung chung (beautiful, good). Dùng thuật ngữ kỹ thuật.
 - **Physical Logic**: Đảm bảo chuyển động camera khả thi về mặt vật lý.
 - **Output Format**: Luôn lưu kết quả prompt vào file Markdown theo cấu trúc ngày, đồng thời BẮT BUỘC phải mở file đó dưới dạng **Artifact** (Bằng cách set flag `IsArtifact: true` hoặc dùng UI của hệ thống) để đảm bảo User luôn có sẵn nút "Copy" trên giao diện Chat.
 - **Language**: Draft/giải thích bằng Tiếng Việt, nhưng **Prompt Final phải là Tiếng Anh**.
-
