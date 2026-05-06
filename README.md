@@ -11,11 +11,11 @@ Hệ thống Agent chuyên dụng để xây dựng và quản lý Prompt chất
 ## 🛠️ Hướng dẫn sử dụng (Slash Commands)
 Sử dụng các lệnh sau trong khung chat để kích hoạt các quy trình tự động:
 
-- `/slash-polish`: Chuẩn hóa prompt thô thành cấu trúc Google Flow chuyên nghiệp.
-- `/slash-concept`: Đề xuất 3 biến thể phong cách khác nhau cho một ý tưởng.
-- `/slash-ref`: Phân tích ảnh tham chiếu để tạo prompt Nano Banana tương ứng.
-- `/slash-animate`: Tạo video prompt với chuyển động camera từ ảnh gốc.
-- `/slash-storyboard`: Tạo kịch bản video phân đoạn kèm hiệu ứng âm thanh (SFX).
+- `/polish`: Chuẩn hóa prompt thô thành cấu trúc Google Flow chuyên nghiệp.
+- `/concept`: Đề xuất 3 biến thể phong cách khác nhau cho một ý tưởng.
+- `/ref`: Phân tích ảnh tham chiếu để tạo prompt Nano Banana tương ứng.
+- `/animate`: Tạo video prompt với chuyển động camera từ ảnh gốc.
+- `/storyboard`: Tạo kịch bản video phân đoạn kèm hiệu ứng âm thanh (SFX).
 
 > [!TIP]
 > **Khuyến khích**: Hãy sử dụng extension [Markdown-ext](https://github.com/manhhuynh-designer/Markdown-ext) để có trải nghiệm tốt nhất. Extension này giúp bạn xem trước định dạng Markdown và có nút "Copy" chuyên dụng để sao chép hoặc điều chỉnh prompt cực kỳ nhanh chóng.
