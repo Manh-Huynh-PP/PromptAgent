@@ -6,6 +6,10 @@
 /** @type {number|null} Index of project being edited, null = add mode */
 let editingIndex = null;
 
+let currentActiveProjectIndex = null;
+let currentActiveGemUrl = null;
+let currentActiveFlowUrl = null;
+
 /** SVG icon constants (Lucide-style, 16px default) */
 const ICONS = {
   folder: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
@@ -18,18 +22,117 @@ const ICONS = {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadProjects();
+  loadSettings();
 
   document.getElementById('addBtn').addEventListener('click', saveProject);
   document.getElementById('cancelBtn').addEventListener('click', cancelEdit);
   document.getElementById('exportBtn').addEventListener('click', exportProjects);
   document.getElementById('importBtn').addEventListener('click', () => document.getElementById('importFile').click());
   document.getElementById('importFile').addEventListener('change', importProjects);
+  
+  document.getElementById('settingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsSection').style.display = 'block';
+    document.getElementById('projectFormSection').style.display = 'none';
+  });
+  document.getElementById('cancelSettingsBtn').addEventListener('click', () => {
+    document.getElementById('settingsSection').style.display = 'none';
+    document.getElementById('projectFormSection').style.display = 'block';
+  });
+  document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+  document.getElementById('autoNewProjectBtn').addEventListener('click', autoNewProject);
+  document.getElementById('fetchTabsBtn').addEventListener('click', fetchCurrentTabs);
+  
+  document.getElementById('updateLinksBtn').addEventListener('click', updateActiveLinks);
 });
+
+function updateActiveLinks() {
+  if (currentActiveProjectIndex !== null && currentActiveGemUrl && currentActiveFlowUrl) {
+    chrome.storage.sync.get(['flowProjects'], (result) => {
+      const projects = result.flowProjects || [];
+      if (projects[currentActiveProjectIndex]) {
+        projects[currentActiveProjectIndex].gemUrl = currentActiveGemUrl;
+        projects[currentActiveProjectIndex].flowUrl = currentActiveFlowUrl;
+        chrome.storage.sync.set({ flowProjects: projects }, () => {
+          renderProjects(projects);
+          
+          // Provide visual feedback
+          const btn = document.getElementById('updateLinksBtn');
+          const originalText = btn.innerHTML;
+          btn.innerHTML = ICONS.check + ' Updated!';
+          setTimeout(() => { btn.innerHTML = originalText; }, 2000);
+        });
+      }
+    });
+  }
+}
+
+function fetchCurrentTabs() {
+  const btn = document.getElementById('fetchTabsBtn');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = 'Fetching...';
+  
+  chrome.tabs.query({}, (tabs) => {
+    // Sort tabs to get active ones first
+    const gemTabs = tabs.filter(t => t.url && t.url.includes('gemini.google.com')).sort((a,b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+    const flowTabs = tabs.filter(t => t.url && t.url.includes('labs.google/fx/tools/flow')).sort((a,b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
+    
+    if (gemTabs.length > 0 && flowTabs.length > 0) {
+      document.getElementById('gemUrl').value = gemTabs[0].url;
+      document.getElementById('flowUrl').value = flowTabs[0].url;
+      btn.innerHTML = 'Fetched!';
+      
+      if (!document.getElementById('projectName').value) {
+        document.getElementById('projectName').value = "Detected Project";
+      }
+    } else {
+      btn.innerHTML = '⚠️ Not Found';
+    }
+    
+    setTimeout(() => { btn.innerHTML = originalHtml; }, 2000);
+  });
+}
+
+function loadSettings() {
+  chrome.storage.sync.get(['defaultGemUrl'], (result) => {
+    if (result.defaultGemUrl) {
+      document.getElementById('defaultGemUrl').value = result.defaultGemUrl;
+    }
+  });
+}
+
+function saveSettings() {
+  const defaultGemUrl = document.getElementById('defaultGemUrl').value.trim();
+  chrome.storage.sync.set({ defaultGemUrl }, () => {
+    document.getElementById('settingsSection').style.display = 'none';
+    document.getElementById('projectFormSection').style.display = 'block';
+  });
+}
+
+function autoNewProject() {
+  const newNameInput = document.getElementById('newProjectName');
+  const name = newNameInput.value.trim() || "New Project";
+
+  chrome.storage.sync.get(['defaultGemUrl', 'flowProjects'], (result) => {
+    const gemUrl = result.defaultGemUrl || chrome.runtime.getURL("guide.html");
+    const flowUrl = "https://labs.google/fx/tools/flow";
+    
+    const projects = result.flowProjects || [];
+    const newId = Date.now().toString();
+    projects.push({ name, gemUrl, flowUrl, id: newId });
+
+    chrome.storage.sync.set({ flowProjects: projects }, () => {
+      renderProjects(projects);
+      newNameInput.value = '';
+      launchSplitView(gemUrl, flowUrl, newId);
+    });
+  });
+}
 
 function loadProjects() {
   chrome.storage.sync.get(['flowProjects'], (result) => {
     const projects = result.flowProjects || [];
     renderProjects(projects);
+    checkActiveTabs();
   });
 }
 
@@ -54,8 +157,9 @@ function renderProjects(projects) {
     const info = document.createElement('div');
     info.className = 'info';
     info.innerHTML = `
-      <div class="name" title="${proj.name}">${proj.name}</div>
-      <div class="meta">Gemini ↔ Flow</div>
+      <div class="name" title="${proj.name}">
+        <span class="active-indicator"></span>${proj.name}
+      </div>
     `;
     
     const actions = document.createElement('div');
@@ -64,7 +168,7 @@ function renderProjects(projects) {
     const launchBtn = document.createElement('button');
     launchBtn.className = 'btn-launch';
     launchBtn.innerHTML = ICONS.rocket + ' Launch';
-    launchBtn.onclick = () => launchSplitView(proj.gemUrl, proj.flowUrl);
+    launchBtn.onclick = () => launchSplitView(proj.gemUrl, proj.flowUrl, proj.id);
 
     const editBtn = document.createElement('button');
     editBtn.className = 'btn-ghost btn-edit';
@@ -119,7 +223,7 @@ function cancelEdit() {
 function setFormMode(mode) {
   const addBtn = document.getElementById('addBtn');
   const cancelBtn = document.getElementById('cancelBtn');
-  const sectionLabel = document.querySelector('.section-label');
+  const sectionLabel = document.getElementById('formSectionLabel');
 
   if (mode === 'edit') {
     addBtn.innerHTML = ICONS.check + ' Update Project';
@@ -130,7 +234,10 @@ function setFormMode(mode) {
     addBtn.innerHTML = ICONS.save + ' Save Project';
     addBtn.classList.remove('btn-update');
     cancelBtn.style.display = 'none';
-    sectionLabel.textContent = 'New Project';
+    sectionLabel.textContent = 'Add Custom Project';
+    
+    // Re-check active tabs to correctly show activeProjectSection if needed
+    checkActiveTabs();
   }
 }
 
@@ -203,11 +310,12 @@ function deleteProject(index) {
 
 // ── Launch ──────────────────────────────────────
 
-function launchSplitView(gemUrl, flowUrl) {
+function launchSplitView(gemUrl, flowUrl, projectId) {
   chrome.runtime.sendMessage({
     action: "OPEN_SPLIT_VIEW",
     gemUrl,
-    flowUrl
+    flowUrl,
+    projectId
   });
 }
 
@@ -251,4 +359,150 @@ function importProjects(event) {
     document.getElementById('importFile').value = '';
   };
   reader.readAsText(file);
+}
+
+// ── Active Tabs Logic ─────────────────────────
+
+function checkActiveTabs() {
+  chrome.runtime.sendMessage({ action: "GET_ACTIVE_PAIRS" }, (response) => {
+    const activePairs = response?.activePairs || [];
+    chrome.tabs.query({}, (tabs) => {
+      chrome.storage.sync.get(['flowProjects'], (result) => {
+        let projects = result.flowProjects || [];
+        let needsSave = false;
+        
+        // Migrate old projects to have an ID
+        projects.forEach(p => {
+          if (!p.id) {
+            p.id = Date.now().toString() + Math.random().toString(36).substring(7);
+            needsSave = true;
+          }
+        });
+        
+        if (needsSave) {
+          chrome.storage.sync.set({ flowProjects: projects });
+        }
+
+        let activeFound = false;
+        currentActiveProjectIndex = null;
+        currentActiveGemUrl = null;
+        currentActiveFlowUrl = null;
+
+        document.querySelectorAll('.project-card').forEach((card, index) => {
+          const proj = projects[index];
+          const launchBtn = card.querySelector('.btn-launch');
+          if (!proj || !launchBtn) return;
+
+          // Check against activePairs first
+          const pair = activePairs.find(p => p.projectId === proj.id);
+          let gemTab, flowTab;
+
+          if (pair) {
+            gemTab = tabs.find(t => t.id === pair.gemTabId);
+            flowTab = tabs.find(t => t.id === pair.flowTabId);
+          } else {
+            // Fallback for pre-existing tabs or auto-detected but not launched via extension
+            const gemFragment = urlToFragment(proj.gemUrl);
+            const flowFragment = urlToFragment(proj.flowUrl);
+            gemTab = tabs.find(t => t.url && t.url.includes(gemFragment));
+            flowTab = tabs.find(t => t.url && t.url.includes(flowFragment));
+          }
+
+          if (gemTab && flowTab) {
+            activeFound = true;
+            if (currentActiveProjectIndex === null) {
+              currentActiveProjectIndex = index;
+              currentActiveGemUrl = gemTab.url;
+              currentActiveFlowUrl = flowTab.url;
+            }
+            card.classList.add('active');
+            launchBtn.innerHTML = ICONS.rocket + ' Focus';
+            launchBtn.onclick = () => focusTabs(gemTab.id, flowTab.id);
+          } else {
+            card.classList.remove('active');
+            launchBtn.innerHTML = ICONS.rocket + ' Launch';
+            launchBtn.onclick = () => launchSplitView(proj.gemUrl, proj.flowUrl, proj.id);
+          }
+        });
+
+        // Auto-detect unconfigured pair
+        const gemTabs = tabs.filter(t => t.url && t.url.includes('gemini.google.com'));
+        const flowTabs = tabs.filter(t => t.url && t.url.includes('labs.google/fx/tools/flow'));
+
+        if (gemTabs.length > 0 && flowTabs.length > 0) {
+          const firstGem = gemTabs[0];
+          const firstFlow = flowTabs[0];
+          
+          const isKnownPair = projects.some(p => {
+             const pair = activePairs.find(ap => ap.projectId === p.id);
+             if (pair && pair.gemTabId === firstGem.id && pair.flowTabId === firstFlow.id) return true;
+             
+             const pGem = urlToFragment(p.gemUrl);
+             const pFlow = urlToFragment(p.flowUrl);
+             return firstGem.url.includes(pGem) && firstFlow.url.includes(pFlow);
+          });
+
+          if (!isKnownPair && editingIndex === null) {
+            const gemInput = document.getElementById('gemUrl');
+            const flowInput = document.getElementById('flowUrl');
+            const nameInput = document.getElementById('projectName');
+            
+            if (!gemInput.value && !flowInput.value) {
+              gemInput.value = firstGem.url;
+              flowInput.value = firstFlow.url;
+              if (!nameInput.value) {
+                nameInput.value = "Detected Project";
+              }
+            }
+          }
+        }
+
+        const formSection = document.getElementById('projectFormSection');
+        const activeSection = document.getElementById('activeProjectSection');
+
+        if (activeFound && editingIndex === null) {
+          formSection.style.display = 'none';
+          activeSection.style.display = 'block';
+          if (currentActiveProjectIndex !== null) {
+            document.getElementById('activeProjectInfo').textContent = projects[currentActiveProjectIndex].name;
+          }
+        } else if (editingIndex === null) {
+          formSection.style.display = 'block';
+          activeSection.style.display = 'none';
+        } else if (editingIndex !== null) {
+          activeSection.style.display = 'none';
+        }
+
+        const statusDot = document.getElementById('globalStatusDot');
+        const statusText = document.getElementById('globalStatusText');
+        if (activeFound) {
+          statusDot.style.background = '#10b981'; // Green
+          statusDot.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.4)';
+          statusText.textContent = 'Active project connected';
+        } else {
+          statusDot.style.background = 'var(--subtle)'; // Gray
+          statusDot.style.boxShadow = 'none';
+          statusText.textContent = 'No active projects';
+        }
+      });
+    });
+  });
+}
+
+function urlToFragment(url) {
+  try {
+    const urlObj = new URL(url);
+    return urlObj.hostname + urlObj.pathname;
+  } catch (e) {
+    // Fallback if it's not a valid URL (like a chrome-extension:// path or just fragment)
+    return url.replace(/^\*:\/\//, "").replace(/\/?\*$/, "").split('?')[0].split('#')[0];
+  }
+}
+
+function focusTabs(gemTabId, flowTabId) {
+  chrome.runtime.sendMessage({
+    action: "FOCUS_TABS",
+    gemTabId,
+    flowTabId
+  });
 }

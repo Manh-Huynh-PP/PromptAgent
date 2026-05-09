@@ -8,23 +8,83 @@
  *   3. Screen dimensions wrong → use chrome.system.display API
  */
 
+let activePairs = [];
+
+chrome.storage.local.get(['activePairs'], (result) => {
+  if (result.activePairs) {
+    activePairs = result.activePairs;
+  }
+});
+
+function saveActivePairs() {
+  chrome.storage.local.set({ activePairs });
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  const index = activePairs.findIndex(p => p.gemTabId === tabId || p.flowTabId === tabId);
+  if (index !== -1) {
+    console.log("[FB BG] Cleaning up active pair due to tab close:", activePairs[index]);
+    activePairs.splice(index, 1);
+    saveActivePairs();
+  }
+});
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "OPEN_SPLIT_VIEW") {
     // Fire-and-forget: respond IMMEDIATELY before popup closes
     sendResponse({ success: true });
     // Then do the work asynchronously
-    openSplitView(request.gemUrl, request.flowUrl);
+    openSplitView(request.gemUrl, request.flowUrl, request.projectId);
     return false; // sync response already sent
   }
 
+  if (request.action === "GET_ACTIVE_PAIRS") {
+    sendResponse({ activePairs });
+    return false;
+  }
+
+  if (request.action === "FOCUS_TABS") {
+    const { gemTabId, flowTabId } = request;
+    chrome.tabs.get(gemTabId, (gemTab) => {
+      if (!chrome.runtime.lastError && gemTab) {
+        chrome.windows.update(gemTab.windowId, { focused: true }, () => {
+          chrome.tabs.update(gemTabId, { active: true });
+          chrome.tabs.get(flowTabId, (flowTab) => {
+            if (!chrome.runtime.lastError && flowTab) {
+              chrome.windows.update(flowTab.windowId, { focused: true }, () => {
+                chrome.tabs.update(flowTabId, { active: true });
+              });
+            }
+          });
+        });
+      }
+    });
+    sendResponse({ success: true });
+    return false;
+  }
+
   if (request.action === "FORWARD_TO_FLOW") {
-    console.log("[FB BG] → Flow:", request.payload?.prompt?.substring(0, 50));
+    const senderTabId = sender?.tab?.id;
+    const pair = activePairs.find(p => p.gemTabId === senderTabId);
+    if (pair) {
+      console.log("[FB BG] → Flow (Paired):", request.payload?.prompt?.substring(0, 50));
+      chrome.tabs.sendMessage(pair.flowTabId, { action: "EXECUTE_PROMPT", payload: request.payload }, sendResponse);
+      return true;
+    }
+    console.log("[FB BG] → Flow (Fallback):", request.payload?.prompt?.substring(0, 50));
     forwardToTab("*://labs.google/fx/tools/flow/*", "EXECUTE_PROMPT", request.payload, sendResponse);
     return true; // async
   }
 
   if (request.action === "FORWARD_TO_GEMINI") {
-    console.log("[FB BG] → Gemini:", request.payload?.mediaType);
+    const senderTabId = sender?.tab?.id;
+    const pair = activePairs.find(p => p.flowTabId === senderTabId);
+    if (pair) {
+      console.log("[FB BG] → Gemini (Paired):", request.payload?.mediaType);
+      chrome.tabs.sendMessage(pair.gemTabId, { action: "EXECUTE_ANALYSIS", payload: request.payload }, sendResponse);
+      return true;
+    }
+    console.log("[FB BG] → Gemini (Fallback):", request.payload?.mediaType);
     forwardToTab("*://gemini.google.com/*", "EXECUTE_ANALYSIS", request.payload, sendResponse);
     return true; // async
   }
@@ -119,7 +179,7 @@ async function getScreenBounds() {
  * Open side-by-side Split View.
  * Uses Promise.all to create both windows concurrently.
  */
-async function openSplitView(gemUrl, flowUrl) {
+async function openSplitView(gemUrl, flowUrl, projectId) {
   try {
     const screen = await getScreenBounds();
     const halfW = Math.floor(screen.width / 2);
@@ -155,6 +215,15 @@ async function openSplitView(gemUrl, flowUrl) {
     ]);
 
     console.log("[FB BG] ✅ Split View created:", gemWin.id, "|", flowWin.id);
+
+    const gemTabId = gemWin.tabs && gemWin.tabs.length > 0 ? gemWin.tabs[0].id : null;
+    const flowTabId = flowWin.tabs && flowWin.tabs.length > 0 ? flowWin.tabs[0].id : null;
+    
+    if (gemTabId && flowTabId) {
+      activePairs.push({ gemTabId, flowTabId, projectId });
+      saveActivePairs();
+      console.log("[FB BG] Registered active pair:", gemTabId, flowTabId, projectId);
+    }
 
     // Bring Gemini window to front briefly then switch to Flow
     // This ensures both windows are visible and not stacked

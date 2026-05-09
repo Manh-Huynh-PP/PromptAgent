@@ -31,17 +31,64 @@
           <line x1="12" y1="15" x2="12" y2="3"/>
         </svg>
       </button>
+      <button class="icon-btn" id="settingsBtn" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
       <input type="file" id="importFile" accept=".json" style="display:none">
     </div>
   </div>
 
-  <div class="status-bar">
-    <span class="status-dot"></span>
-    <span>Active — Gemini ↔ Flow</span>
+  <div class="status-bar" id="globalStatus">
+    <span class="status-dot" id="globalStatusDot" style="background: var(--subtle); box-shadow: none;"></span>
+    <span id="globalStatusText">Checking active tabs...</span>
   </div>
 
-  <div class="section">
-    <div class="section-label">New Project</div>
+  <div class="new-project-bar">
+     <input class="input-field" type="text" id="newProjectName" placeholder="Quick new project...">
+     <button class="btn-primary" id="autoNewProjectBtn" title="Create New Project">
+       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+         <path d="M12 5v14M5 12h14"/>
+       </svg>
+       New
+     </button>
+  </div>
+
+  <div class="section" id="settingsSection" style="display: none;">
+    <div class="section-label">Settings</div>
+    <input class="input-field" type="text" id="defaultGemUrl" placeholder="Default GEM URL (or leave empty for Guide)">
+    <div class="form-actions">
+      <button class="btn-primary" id="saveSettingsBtn">Save Settings</button>
+      <button class="btn-cancel" id="cancelSettingsBtn" style="display:inline-flex;">Close</button>
+    </div>
+  </div>
+
+  <div class="section" id="activeProjectSection" style="display: none;">
+    <div class="section-label">Active Project</div>
+    <div id="activeProjectInfo" style="margin-bottom: 12px; font-weight: 500; font-size: 14px; color: var(--text);"></div>
+    <div class="form-actions">
+      <button class="btn-primary" id="updateLinksBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>
+        Update Links
+      </button>
+    </div>
+  </div>
+
+  <div class="section" id="projectFormSection">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+      <div class="section-label" id="formSectionLabel" style="margin-bottom: 0;">Add Custom Project</div>
+      <button class="btn-ghost" id="fetchTabsBtn" title="Fetch Current Tabs" style="width: auto; padding: 4px 8px; font-size: 11px; height: 24px; color: var(--primary); border: 1px solid var(--border);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 12px; height: 12px; margin-right: 4px;">
+          <path d="M21 2v6h-6"/><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
+        </svg>
+        Fetch Tabs
+      </button>
+    </div>
     <input class="input-field" type="text" id="projectName" placeholder="Project name">
     <input class="input-field" type="text" id="gemUrl" placeholder="Gemini GEM URL">
     <input class="input-field" type="text" id="flowUrl" placeholder="Flow project URL">

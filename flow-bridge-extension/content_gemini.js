@@ -21,8 +21,9 @@ function injectStyles() {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      margin: 8px 0 4px;
-      padding: 8px 16px;
+      padding: 8px 18px;
+      margin-right: 8px;
+      margin-bottom: 8px;
       background: #242424;
       color: #F5F5F5;
       border: 1px solid #333333;
@@ -274,6 +275,11 @@ function injectFlowButton(el, payload, index = 1, total = 1) {
       container.style.display = "flex";
       container.style.gap = "8px";
       container.style.flexWrap = "wrap";
+      container.style.justifyContent = "flex-end";
+      container.style.width = "100%";
+      container.style.marginTop = "16px";
+      container.style.marginBottom = "16px";
+      container.style.paddingRight = "40px";
       el.parentElement.insertBefore(container, el.nextSibling);
     }
     container.appendChild(btn);
