@@ -26,79 +26,118 @@ function injectStyles() {
       gap: 5px;
       margin: 4px;
       padding: 6px 12px;
-      background: #7C9CFF;
-      color: #fff;
-      border: none;
+      background: #242424;
+      color: #F5F5F5;
+      border: 1px solid #333333;
       border-radius: 100px;
-      font-family: 'Google Sans', Inter, sans-serif;
-      font-size: 11px;
+      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      transition: opacity 150ms, transform 80ms;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       z-index: 9999;
       position: relative;
     }
-    .fb-btn:hover { opacity: 0.85; }
-    .fb-btn:active { transform: scale(0.96); }
-    .fb-btn.done { background: #3FB950; pointer-events: none; opacity: 0.7; }
+    .fb-btn:hover { 
+      background: #333333; 
+      border-color: #444444;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+    }
+    .fb-btn:active { 
+      transform: translateY(1px) scale(0.98); 
+      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    .fb-btn.done { 
+      background: #EBEBEB; 
+      color: #121212; 
+      border: 1px solid #EBEBEB; 
+      pointer-events: none; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+      transform: none;
+    }
 
     .fb-media-container {
       position: relative !important;
     }
     .fb-analyze-btn {
       position: absolute;
-      bottom: 8px;
-      right: 8px;
-      background: rgba(26, 31, 36, 0.75);
-      color: #E6EDF3;
+      bottom: 12px;
+      right: 12px;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(8px);
+      color: #ffffff;
       border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 6px;
-      padding: 6px 12px;
-      font-family: 'Google Sans', Inter, sans-serif;
-      font-size: 11px;
+      border-radius: 100px;
+      padding: 8px 16px;
+      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
+      font-size: 12px;
       font-weight: 600;
       cursor: pointer;
       z-index: 100;
-      backdrop-filter: blur(4px);
       opacity: 0;
-      transition: opacity 0.2s, background 0.2s;
+      transform: translateY(8px) scale(0.95);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       align-items: center;
       gap: 6px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
     }
     .fb-media-container:hover .fb-analyze-btn {
       opacity: 1;
+      transform: translateY(0) scale(1);
     }
     .fb-analyze-btn:hover {
-      background: rgba(26, 31, 36, 0.95);
+      background: rgba(0, 0, 0, 1);
+      transform: translateY(-2px) scale(1.02) !important;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+      border-color: rgba(255,255,255,0.3);
+    }
+    .fb-analyze-btn:active {
+      transform: translateY(1px) scale(0.98) !important;
     }
     .fb-analyze-btn.done {
-      background: #3FB950;
+      background: #ffffff;
+      color: #000000;
+      border-color: #ffffff;
       opacity: 1;
+      transform: translateY(0) scale(1) !important;
       pointer-events: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    }
+    .fb-analyze-btn svg {
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .fb-analyze-btn:hover svg {
+      transform: translateY(-1px) scale(1.1);
     }
 
     .fb-toast {
       position: fixed;
       bottom: 80px;
       left: 50%;
-      transform: translateX(-50%) translateY(10px);
-      background: #1A1F24;
-      color: #E6EDF3;
-      padding: 10px 20px;
-      border-radius: 8px;
-      border: 1px solid #2A2F36;
-      font-family: 'Google Sans', Inter, sans-serif;
-      font-size: 12px;
+      transform: translateX(-50%) translateY(20px) scale(0.95);
+      background: rgba(0, 0, 0, 0.9);
+      backdrop-filter: blur(8px);
+      color: #ffffff;
+      padding: 12px 24px;
+      border-radius: 100px;
+      border: 1px solid rgba(255,255,255,0.1);
+      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
+      font-size: 13px;
       font-weight: 500;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      letter-spacing: 0.2px;
+      box-shadow: 0 12px 32px rgba(0,0,0,0.3);
       z-index: 99999;
       opacity: 0;
-      transition: opacity 250ms, transform 250ms;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
     }
-    .fb-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .fb-toast.show { 
+      opacity: 1; 
+      transform: translateX(-50%) translateY(0) scale(1); 
+    }
   `;
   document.head.appendChild(style);
 }

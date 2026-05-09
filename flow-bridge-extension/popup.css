@@ -5,21 +5,22 @@
    ============================================ */
 
 :root {
-  --bg: #0D0F12;
-  --surface: #14171B;
-  --elevated: #1A1F24;
-  --border: #2A2F36;
-  --muted: #8B949E;
-  --subtle: #6B7280;
-  --text: #E6EDF3;
-  --text-dim: #B3BAC5;
-  --primary: #7C9CFF;
-  --accent: #A789FA;
-  --success: #3FB950;
-  --warning: #D29922;
-  --danger: #F85149;
-  --code-bg: #0F1319;
-  --inline-bg: #1E232A;
+  --bg: #121212;
+  --surface: #1A1A1A;
+  --elevated: #242424;
+  --border: #333333;
+  --muted: #737373;
+  --subtle: #A3A3A3;
+  --text: #F5F5F5;
+  --text-dim: #D4D4D4;
+  --primary: #EBEBEB;
+  --primary-hover: #FFFFFF;
+  --accent: #EBEBEB;
+  --success: #EBEBEB;
+  --warning: #EBEBEB;
+  --danger: #EBEBEB;
+  --code-bg: #0A0A0A;
+  --inline-bg: #242424;
 
   --radius: 6px;
   --radius-lg: 8px;
@@ -178,7 +179,7 @@ body {
   border: none;
   border-radius: var(--radius);
   background: var(--primary);
-  color: #fff;
+  color: #121212;
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -196,7 +197,7 @@ body {
 }
 
 .btn-primary:hover {
-  background: #6B8AEE;
+  background: var(--primary-hover);
 }
 
 .btn-primary:active {
@@ -278,7 +279,7 @@ body {
 
 .btn-launch {
   background: var(--primary);
-  color: #fff;
+  color: #121212;
   border: none;
   padding: 5px 12px;
   border-radius: var(--radius-pill);
@@ -299,7 +300,7 @@ body {
 }
 
 .btn-launch:hover {
-  background: #6B8AEE;
+  background: var(--primary-hover);
 }
 
 .btn-launch:active {
