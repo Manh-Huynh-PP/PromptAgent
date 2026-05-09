@@ -61,41 +61,73 @@ function injectStyles() {
     .fb-media-container {
       position: relative !important;
     }
+
+    /* ── Base button (medium — default) ───────────────── */
     .fb-analyze-btn {
       position: absolute;
-      bottom: 12px;
-      right: 12px;
-      background: rgba(0, 0, 0, 0.85);
+      top: 8px;
+      left: 8px;
+      background: rgba(0, 0, 0, 0.75);
       backdrop-filter: blur(8px);
       color: #ffffff;
       border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 100px;
-      padding: 8px 16px;
-      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
-      font-size: 12px;
-      font-weight: 600;
+      border-radius: 50%;
+      padding: 8px;
+      font-size: 0;
+      line-height: 0;
       cursor: pointer;
       z-index: 100;
       opacity: 0;
-      transform: translateY(8px) scale(0.95);
+      transform: translateY(-6px) scale(0.95);
       transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
       display: flex;
       align-items: center;
-      gap: 6px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      justify-content: center;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     }
+    .fb-analyze-btn svg {
+      width: 18px;
+      height: 18px;
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* ── Small variant (grid items < 200px) ─────────── */
+    .fb-analyze-btn.fb-btn-sm {
+      padding: 5px;
+      top: 4px;
+      left: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .fb-analyze-btn.fb-btn-sm svg {
+      width: 12px;
+      height: 12px;
+    }
+
+    /* ── Large variant (containers > 400px) ─────────── */
+    .fb-analyze-btn.fb-btn-lg {
+      padding: 12px;
+      top: 12px;
+      left: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .fb-analyze-btn.fb-btn-lg svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ── Interaction states ──────────────────────────── */
     .fb-media-container:hover .fb-analyze-btn {
       opacity: 1;
       transform: translateY(0) scale(1);
     }
     .fb-analyze-btn:hover {
       background: rgba(0, 0, 0, 1);
-      transform: translateY(-2px) scale(1.02) !important;
+      transform: translateY(-2px) scale(1.05) !important;
       box-shadow: 0 12px 32px rgba(0,0,0,0.4);
       border-color: rgba(255,255,255,0.3);
     }
     .fb-analyze-btn:active {
-      transform: translateY(1px) scale(0.98) !important;
+      transform: translateY(1px) scale(0.95) !important;
     }
     .fb-analyze-btn.done {
       background: #ffffff;
@@ -106,11 +138,8 @@ function injectStyles() {
       pointer-events: none;
       box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     }
-    .fb-analyze-btn svg {
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
     .fb-analyze-btn:hover svg {
-      transform: translateY(-1px) scale(1.1);
+      transform: scale(1.1);
     }
 
     .fb-toast {
@@ -222,17 +251,27 @@ const PROMPT_STRATEGIES = [
 
 // ── Submit Button Strategies ───────────────────────────────────
 const SUBMIT_STRATEGIES = [
+  // Strategy 1 (Primary): Google Symbols icon "arrow_forward" — the actual Generate button
+  () => {
+    const icons = document.querySelectorAll('i.google-symbols');
+    for (const icon of icons) {
+      if (icon.textContent.trim() === 'arrow_forward') {
+        // The button is the icon itself or a parent <button>
+        return icon.closest('button') || icon;
+      }
+    }
+    return null;
+  },
   () => document.querySelector('button[aria-label*="Send"]'),
   () => document.querySelector('button[aria-label*="send"]'),
   () => document.querySelector('button[aria-label*="Submit"]'),
   () => document.querySelector('button[aria-label*="Generate"]'),
   () => document.querySelector('button[type="submit"]'),
-  // The circular arrow submit button at the bottom right of the input bar
+  // Fallback: circular button near the bottom of the page
   () => {
     const buttons = document.querySelectorAll("button");
     for (const btn of buttons) {
       const rect = btn.getBoundingClientRect();
-      // Bottom of page, small circular button
       if (rect.top > window.innerHeight - 100 && rect.width < 60 && rect.height < 60) {
         return btn;
       }
@@ -260,7 +299,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
  * Delegates actual injection to content_flow_main.js (MAIN world) via postMessage.
  */
 async function executePrompt(payload) {
-  const { prompt } = payload;
+  const { prompt, autoSubmit } = payload;
   if (!prompt) throw new Error("No prompt");
 
   console.log("[FB Flow] Delegating to MAIN world script...");
@@ -278,7 +317,8 @@ async function executePrompt(payload) {
 
   window.postMessage({
     type: "FB_INJECT_PROMPT",
-    prompt: prompt
+    prompt: prompt,
+    autoSubmit: !!autoSubmit
   }, "*");
 
   // Wait for confirmation from MAIN world
@@ -288,7 +328,16 @@ async function executePrompt(payload) {
 
     if (result?.prompt?.success) {
       const method = result.prompt.method || "unknown";
-      showToast(`✅ Prompt injected (${method})! Please verify and press Generate.`, 4000);
+
+      if (autoSubmit) {
+        if (result.autoSubmitSuccess) {
+          showToast(`🚀 Prompt injected & generating! (${method})`, 4000);
+        } else {
+          showToast(`✅ Prompt injected (${method}). Generate button not found — click manually.`, 5000);
+        }
+      } else {
+        showToast(`✅ Prompt injected (${method})! Press Generate.`, 4000);
+      }
     } else {
       showToast("⚠️ Prompt injection may be incomplete. Please check manually.", 5000);
     }
@@ -351,7 +400,14 @@ function scanMedia() {
   for (const vid of videos) {
     if (vid.getAttribute(INJECTED_ATTR)) continue;
     const rect = vid.getBoundingClientRect();
-    if (rect.width < 80 || rect.height < 80) continue;
+    // On detail pages, video may not have loaded yet — skip size check if 0 but src exists
+    if (rect.width < 80 || rect.height < 80) {
+      if (rect.width === 0 && rect.height === 0 && (vid.src || vid.querySelector("source"))) {
+        // Video not rendered yet — mark for retry
+        continue;
+      }
+      continue;
+    }
     vid.setAttribute(INJECTED_ATTR, "true");
     addAnalyzeButton(vid, "video");
   }
@@ -360,12 +416,12 @@ function scanMedia() {
 function addAnalyzeButton(mediaEl, type = "image") {
   const btn = document.createElement("button");
   btn.className = "fb-analyze-btn";
-  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Gemini`;
+  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L9.5 9.5L2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z" fill="currentColor"/><path d="M17 3l3 3M4 18l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
 
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     const originalHtml = btn.innerHTML;
-    btn.innerHTML = `⏳...`;
+    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" opacity="0.3"/><path d="M12 2v4" stroke-width="3"/></svg>`;
 
     try {
       let dataUrl;
@@ -397,7 +453,7 @@ function addAnalyzeButton(mediaEl, type = "image") {
         }
       }, (res) => {
         if (res?.success) {
-          btn.innerHTML = `✅ Sent`;
+          btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
           btn.classList.add("done");
           showToast("📤 Media sent! Press Ctrl+V in Gemini to paste.", 5000);
           setTimeout(() => {
@@ -416,11 +472,39 @@ function addAnalyzeButton(mediaEl, type = "image") {
     }
   });
 
-  // Position button on the media element's container
-  const container = mediaEl.closest("div") || mediaEl.parentElement;
+  // Position button on a container with actual visible dimensions
+  let container = mediaEl.parentElement;
+  // Walk up to find a div with real dimensions (not a tiny wrapper)
+  while (container && container !== document.body) {
+    const cr = container.getBoundingClientRect();
+    if (container.tagName === "DIV" && cr.width >= 80 && cr.height >= 80) break;
+    container = container.parentElement;
+  }
+  if (!container || container === document.body) {
+    container = mediaEl.parentElement; // fallback to immediate parent
+  }
   if (container) {
     container.classList.add("fb-media-container");
     container.appendChild(btn);
+
+    // Responsive size class based on container width
+    function updateBtnSize() {
+      const w = container.getBoundingClientRect().width;
+      btn.classList.remove("fb-btn-sm", "fb-btn-lg");
+      if (w < 200) {
+        btn.classList.add("fb-btn-sm");
+      } else if (w > 400) {
+        btn.classList.add("fb-btn-lg");
+      }
+      // else: default medium (no extra class)
+    }
+    updateBtnSize();
+
+    // Re-check on resize (user changes grid size)
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(updateBtnSize);
+      ro.observe(container);
+    }
   }
 }
 
@@ -457,14 +541,21 @@ function captureVideoFrame(vid) {
 let tid;
 const obs = new MutationObserver(() => {
   clearTimeout(tid);
-  tid = setTimeout(scanMedia, 1500);
+  // Fast reaction to DOM changes
+  tid = setTimeout(scanMedia, 800);
 });
 
 function init() {
   console.log("[FB Flow] v3 loaded.");
   injectStyles();
   scanMedia();
+  
+  // 1. Observe DOM changes for instant reactions when navigating
   obs.observe(document.body, { childList: true, subtree: true });
+  
+  // 2. Relaxed fallback poller (3s) to catch late-rendered metadata 
+  // without heavily taxing the CPU.
+  setInterval(scanMedia, 3000);
 }
 
 if (document.readyState === "loading") {

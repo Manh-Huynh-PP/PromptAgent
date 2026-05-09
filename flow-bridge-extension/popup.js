@@ -43,6 +43,15 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('fetchTabsBtn').addEventListener('click', fetchCurrentTabs);
   
   document.getElementById('updateLinksBtn').addEventListener('click', updateActiveLinks);
+
+  // Auto-submit toggle
+  const autoCheckbox = document.getElementById('autoSubmitCheckbox');
+  chrome.storage.sync.get(['autoSubmit'], (result) => {
+    autoCheckbox.checked = !!result.autoSubmit;
+  });
+  autoCheckbox.addEventListener('change', () => {
+    chrome.storage.sync.set({ autoSubmit: autoCheckbox.checked });
+  });
 });
 
 function updateActiveLinks() {

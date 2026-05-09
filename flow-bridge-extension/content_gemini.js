@@ -10,6 +10,20 @@
 
 const MARKER = "flow_bridge_prompt";
 const TAGGED = "data-fb-tagged";
+let autoSubmitEnabled = false;
+
+// Load persisted auto-submit preference
+chrome.storage.sync.get(['autoSubmit'], (result) => {
+  autoSubmitEnabled = !!result.autoSubmit;
+});
+
+// Listen for changes from popup toggle in real-time
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.autoSubmit) {
+    autoSubmitEnabled = !!changes.autoSubmit.newValue;
+    console.log('[FB Gem] Auto-submit toggled:', autoSubmitEnabled);
+  }
+});
 
 // ── Styles ─────────────────────────────────────────────────────
 function injectStyles() {
@@ -101,17 +115,46 @@ function showToast(msg, ms = 4000) {
   t._tid = setTimeout(() => t.classList.remove("show"), ms);
 }
 
-// ── JSON Detection (v3.3 — extract all payloads) ──────────────
+// ── JSON Detection (v3.4 — resilient extraction) ──────────────
+/**
+ * Accepted marker strings — AI may rephrase the type field across turns.
+ */
+const MARKER_VARIANTS = ["flow_bridge_prompt", "flow_bridge", "bridge_prompt"];
+
+/**
+ * Check if a parsed object looks like a valid bridge payload.
+ * Flexible: accepts _type match OR presence of prompt_text/prompt field
+ * alongside any marker variant in stringified form.
+ */
+function isBridgePayload(obj) {
+  if (!obj || typeof obj !== 'object') return false;
+  // Strict match
+  if (obj._type === MARKER) return true;
+  // Relaxed: _type contains any variant
+  if (typeof obj._type === 'string' && MARKER_VARIANTS.some(v => obj._type.includes(v))) return true;
+  // Loosest: has prompt_text or prompt field AND some marker-like field
+  if ((obj.prompt_text || obj.prompt) && (obj._type || obj.type)) return true;
+  return false;
+}
+
 /**
  * Extract ALL bridge JSON payloads from text using balanced-brace matching.
  * Supports multiple JSON blocks within the same text element.
+ * Searches for all marker variants to handle AI rephrasing.
  */
 function extractAllBridgeJSON(text) {
   const results = [];
   let searchIdx = 0;
   
   while (true) {
-    const markerIdx = text.indexOf("flow_bridge_prompt", searchIdx);
+    // Find earliest marker variant
+    let markerIdx = -1;
+    for (const variant of MARKER_VARIANTS) {
+      const idx = text.indexOf(variant, searchIdx);
+      if (idx !== -1 && (markerIdx === -1 || idx < markerIdx)) {
+        markerIdx = idx;
+      }
+    }
     if (markerIdx === -1) break;
 
     // Walk backwards from marker to find the opening {
@@ -142,12 +185,28 @@ function extractAllBridgeJSON(text) {
           const candidate = text.substring(start, i + 1);
           try {
             const o = JSON.parse(candidate);
-            if (o?._type === MARKER) {
-              console.log("[FB Gem] ✅ Found bridge JSON:", o.prompt_text?.substring(0, 60));
+            if (isBridgePayload(o)) {
+              // Normalize _type so downstream code always sees the canonical marker
+              o._type = MARKER;
+              console.log("[FB Gem] ✅ Found bridge JSON:", (o.prompt_text || o.prompt)?.substring(0, 60));
               results.push(o);
             }
           } catch (e) {
-            console.warn("[FB Gem] JSON parse failed:", e.message);
+            // Try cleaning common AI artifacts: trailing commas, comments
+            try {
+              const cleaned = candidate
+                .replace(/,\s*([}\]])/g, '$1')       // trailing commas
+                .replace(/\/\/[^\n]*/g, '')           // single-line comments
+                .replace(/\/\*[\s\S]*?\*\//g, '');     // multi-line comments
+              const o2 = JSON.parse(cleaned);
+              if (isBridgePayload(o2)) {
+                o2._type = MARKER;
+                console.log("[FB Gem] ✅ Found bridge JSON (cleaned):", (o2.prompt_text || o2.prompt)?.substring(0, 60));
+                results.push(o2);
+              }
+            } catch (_) {
+              console.warn("[FB Gem] JSON parse failed:", e.message);
+            }
           }
           break;
         }
@@ -191,35 +250,60 @@ function deepText(el) {
 }
 
 // ── Scan Responses ─────────────────────────────────────────────
+/**
+ * Check if text contains any bridge marker variant.
+ */
+function containsBridgeMarker(text) {
+  return MARKER_VARIANTS.some(v => text.includes(v));
+}
+
 function scan() {
-  // Target code elements directly.
-  const candidates = document.querySelectorAll("code-block, pre");
-
-  for (const el of candidates) {
-    if (el.getAttribute(TAGGED)) continue;
-
-    // Skip if this element contains another candidate to avoid processing wrappers
-    if (el.querySelector("code-block, pre")) continue;
-
-    const text = deepText(el);
-    if (!text.includes("flow_bridge_prompt")) continue;
-
-    const payloads = extractAllBridgeJSON(text);
-    if (payloads.length === 0) {
-      el.setAttribute(TAGGED, "invalid"); // mark so we don't keep re-parsing invalid json
-      continue;
-    }
-
-    // Tag the specific code block AND its children to prevent re-processing
-    el.setAttribute(TAGGED, "1");
-    el.querySelectorAll("*").forEach(c => c.setAttribute(TAGGED, "1"));
-
-    // Inject a button for each payload!
-    payloads.forEach((payload, index) => {
-      injectFlowButton(el, payload, index + 1, payloads.length);
-    });
-    console.log(`[FB Gem] ✅ Injected ${payloads.length} button(s) for code block`);
+  // Phase 1: Scan code blocks (most common case)
+  const codeBlocks = document.querySelectorAll("code-block, pre");
+  for (const el of codeBlocks) {
+    processCandidateElement(el);
   }
+
+  // Phase 2: Scan broader message containers for JSON outside code blocks.
+  // AI sometimes outputs the JSON as plain text after several turns.
+  const messageContainers = document.querySelectorAll(
+    "message-content, model-response, .model-response-text, .response-container, .markdown"
+  );
+  for (const container of messageContainers) {
+    if (container.getAttribute(TAGGED)) continue;
+    const text = deepText(container);
+    if (!containsBridgeMarker(text)) continue;
+    // Only process if no child code-block was already processed
+    const hasProcessedChild = container.querySelector(`[${TAGGED}="1"]`);
+    if (hasProcessedChild) continue;
+    processCandidateElement(container);
+  }
+}
+
+function processCandidateElement(el) {
+  if (el.getAttribute(TAGGED)) return;
+
+  // Skip if this element contains another candidate to avoid processing wrappers
+  if (el.querySelector("code-block, pre") && el.tagName !== "CODE-BLOCK" && el.tagName !== "PRE") return;
+
+  const text = deepText(el);
+  if (!containsBridgeMarker(text)) return;
+
+  const payloads = extractAllBridgeJSON(text);
+  if (payloads.length === 0) {
+    el.setAttribute(TAGGED, "invalid");
+    return;
+  }
+
+  // Tag the element and children to prevent re-processing
+  el.setAttribute(TAGGED, "1");
+  el.querySelectorAll("*").forEach(c => c.setAttribute(TAGGED, "1"));
+
+  // Inject buttons
+  payloads.forEach((payload, index) => {
+    injectFlowButton(el, payload, index + 1, payloads.length);
+  });
+  console.log(`[FB Gem] ✅ Injected ${payloads.length} button(s)`);
 }
 
 function injectFlowButton(el, payload, index = 1, total = 1) {
@@ -242,7 +326,7 @@ function injectFlowButton(el, payload, index = 1, total = 1) {
 
     chrome.runtime.sendMessage({
       action: "FORWARD_TO_FLOW",
-      payload: normalizedPayload
+      payload: { ...normalizedPayload, autoSubmit: autoSubmitEnabled }
     }, (res) => {
       if (chrome.runtime.lastError) {
         console.warn("[FB Gem] Send error:", chrome.runtime.lastError.message);
@@ -387,11 +471,20 @@ const obs = new MutationObserver(() => {
   tid = setTimeout(scan, 800);
 });
 
+// Periodic fallback re-scan: catches elements MutationObserver misses
+// (e.g., lazy-rendered shadow DOM, dynamically inserted content)
+let rescanInterval;
+
 function init() {
-  console.log("[FB Gem] v3.2 loaded on:", window.location.href);
+  console.log("[FB Gem] v3.4 loaded on:", window.location.href);
   injectStyles();
   scan();
   obs.observe(document.body, { childList: true, subtree: true });
+
+  // Re-scan every 5s as a safety net
+  rescanInterval = setInterval(() => {
+    try { scan(); } catch (_) {}
+  }, 5000);
 }
 
 if (document.readyState === "loading") {

@@ -105,11 +105,51 @@
 
   // ── Prompt Injection ───────────────────────────────────────────
 
+  // Rate limiting & dedup: prevent rapid successive or duplicate injections
+  let lastInjectTime = 0;
+  let lastPromptHash = "";
+  const MIN_INJECT_INTERVAL = 3000; // 3s minimum between injections
+
+  /**
+   * Human-like random delay (adds jitter so timing is not perfectly uniform).
+   */
+  function humanDelay(base = 100, jitter = 80) {
+    return delay(base + Math.random() * jitter);
+  }
+
+  /**
+   * Simple hash for dedup — prevents the same prompt from being injected twice.
+   */
+  function simpleHash(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+    }
+    return String(h);
+  }
+
   /**
    * Inject prompt text into Flow's React-controlled input.
-   * Uses native DOM events to trigger Slate.js/React's built-in handlers instantly.
+   * Primary: execCommand (works without document focus).
+   * Fallback: clipboard paste (requires focus).
    */
   async function injectPrompt(text) {
+    // Dedup: reject identical prompt within short window
+    const hash = simpleHash(text);
+    const now = Date.now();
+    if (hash === lastPromptHash && now - lastInjectTime < MIN_INJECT_INTERVAL) {
+      console.warn(TAG, "⚠️ Duplicate prompt rejected (same content within 3s)");
+      return { success: true, method: "dedup_skipped" };
+    }
+    lastPromptHash = hash;
+
+    // Rate limit check
+    if (now - lastInjectTime < MIN_INJECT_INTERVAL) {
+      console.warn(TAG, "⚠️ Rate limited — waiting...");
+      await delay(MIN_INJECT_INTERVAL - (now - lastInjectTime));
+    }
+    lastInjectTime = Date.now();
+
     const input = findPromptInput();
     if (!input) {
       console.error(TAG, "❌ Prompt input not found");
@@ -118,23 +158,26 @@
 
     console.log(TAG, "Found input:", input.tagName, input.className?.substring(0, 60));
     
-    // Ensure the input is focused so Slate registers it as active
+    // Step 1: Focus with human-like delay
     input.focus();
-    await delay(50);
+    await humanDelay(80, 60);
 
-    // Select all existing content using execCommand so the new text replaces it instantly.
+    // Step 2: Select all existing content
     try {
       document.execCommand("selectAll", false, null);
     } catch (e) {
       console.warn(TAG, "selectAll failed", e);
     }
-    await delay(50);
+    await humanDelay(50, 40);
 
     let injected = false;
     let method = "";
 
-    // Method 1: InputEvent + execCommand (Highly reliable for simulating typing)
-    console.log(TAG, "Attempting InputEvent + execCommand...");
+    // Method 1: beforeinput + execCommand + input (Slate.js requires all 3)
+    // - beforeinput: Slate intercepts this to update its internal model
+    // - execCommand: Actually modifies the DOM
+    // - input: Signals completion to React reconciliation
+    console.log(TAG, "Attempting execCommand injection...");
     try {
       input.dispatchEvent(new InputEvent("beforeinput", {
         inputType: "insertText",
@@ -142,47 +185,60 @@
         bubbles: true,
         cancelable: true,
       }));
+
       const execSuccess = document.execCommand("insertText", false, text);
+
       input.dispatchEvent(new InputEvent("input", {
         inputType: "insertText",
         data: text,
         bubbles: true,
-        cancelable: true,
       }));
-      
+
       if (execSuccess) {
-        console.log(TAG, "✅ execCommand sequence completed.");
+        console.log(TAG, "✅ execCommand + Slate events completed.");
         injected = true;
         method = "execcommand";
-      } else {
-        console.warn(TAG, "insertText returned false, falling back to Native Paste...");
       }
     } catch (e) {
       console.warn(TAG, "execCommand failed:", e);
     }
 
-    // Method 2: Native Paste Event
-    if (!injected) {
-      console.log(TAG, "Attempting Native Paste event...");
+    // Method 2: Clipboard Paste fallback (requires document focus)
+    if (!injected && document.hasFocus()) {
+      console.log(TAG, "Attempting clipboard paste fallback...");
       try {
+        await navigator.clipboard.writeText(text);
+        await humanDelay(30, 20);
+
         const dt = new DataTransfer();
         dt.setData("text/plain", text);
-      const pasteEvent = new ClipboardEvent("paste", {
-        clipboardData: dt,
-        bubbles: true,
-        cancelable: true,
-        composed: true
-      });
-      input.dispatchEvent(pasteEvent);
-      
-        if (pasteEvent.defaultPrevented) {
-          console.log(TAG, "✅ Native paste handled by framework.");
+        const pasteEvent = new ClipboardEvent("paste", {
+          clipboardData: dt,
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+        });
+        input.dispatchEvent(pasteEvent);
+
+        await humanDelay(100, 50);
+        const currentText = input.textContent || input.innerText || "";
+        if (currentText.includes(text.substring(0, 30))) {
+          console.log(TAG, "✅ Clipboard paste accepted.");
           injected = true;
-          method = "native_paste";
+          method = "clipboard_paste";
         }
       } catch (e) {
-        console.warn(TAG, "Native paste failed:", e);
+        console.warn(TAG, "Clipboard paste failed:", e);
       }
+    }
+
+    // Method 3: Direct innerHTML (last resort)
+    if (!injected) {
+      console.log(TAG, "Falling back to direct innerHTML...");
+      input.innerHTML = `<span data-slate-string="true">${text}</span>`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      injected = true;
+      method = "innerhtml";
     }
 
     // Force cursor to end
@@ -190,6 +246,9 @@
       const sel = window.getSelection();
       sel.collapseToEnd();
     } catch (e) {}
+
+    // Final human-like pause before returning
+    await humanDelay(100, 80);
 
     console.log(TAG, `✅ Prompt injection completed via ${method}`);
     return { success: injected, method };
@@ -212,6 +271,54 @@
     );
   }
 
+  /**
+   * Find the submit/generate button on Flow.
+   * Looks for the arrow_forward icon nearest to the active prompt input,
+   * ensuring we click the correct button for the current mode (Image/Video).
+   */
+  function findSubmitButton() {
+    // Find the currently active prompt input first
+    const activeInput = findPromptInput();
+    
+    // Collect all visible arrow_forward buttons
+    const candidates = [];
+    const icons = document.querySelectorAll('i.google-symbols');
+    for (const icon of icons) {
+      if (icon.textContent.trim() === 'arrow_forward') {
+        const btn = icon.closest('button');
+        const target = btn && isVisible(btn) ? btn : (isVisible(icon) ? icon : null);
+        if (target) candidates.push(target);
+      }
+    }
+
+    if (candidates.length === 0) {
+      // Fallback: aria-label selectors
+      const selectors = ['button[aria-label*="Send"]', 'button[aria-label*="Generate"]', 'button[aria-label*="Submit"]'];
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el && isVisible(el)) return el;
+      }
+      return null;
+    }
+
+    if (candidates.length === 1) return candidates[0];
+
+    // Multiple candidates: pick the one sharing the closest common ancestor with the input,
+    // or the one nearest by vertical position.
+    if (activeInput) {
+      const inputRect = activeInput.getBoundingClientRect();
+      candidates.sort((a, b) => {
+        const aRect = a.getBoundingClientRect();
+        const bRect = b.getBoundingClientRect();
+        const aDist = Math.abs(aRect.top - inputRect.top) + Math.abs(aRect.left - inputRect.left);
+        const bDist = Math.abs(bRect.top - inputRect.top) + Math.abs(bRect.left - inputRect.left);
+        return aDist - bDist;
+      });
+    }
+
+    return candidates[0];
+  }
+
   // ── Message Handler (from isolated-world content_flow.js) ──────
 
   window.addEventListener("message", async (event) => {
@@ -224,6 +331,7 @@
 
     if (data.type === "FB_INJECT_PROMPT") {
       let promptResult = { success: false };
+      let autoSubmitSuccess = false;
 
       if (data.prompt) {
         promptResult = await injectPrompt(data.prompt);
@@ -232,11 +340,71 @@
         promptResult = { success: false, error: "Empty prompt payload" };
       }
 
+      // Auto-submit: click the Generate button from MAIN world (React context)
+      if (data.autoSubmit && promptResult.success) {
+        await humanDelay(1200, 500); // Human-like pause before clicking Generate
+        const submitBtn = findSubmitButton();
+        if (submitBtn) {
+          try {
+            // Flow's onClick handler checks event.isTrusted which is always false
+            // for programmatic events. Use Proxy to intercept and return true.
+            const rect = submitBtn.getBoundingClientRect();
+            const nativeEvent = new MouseEvent('click', {
+              bubbles: true, cancelable: true, view: window,
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + rect.height / 2,
+            });
+
+            // Create a trusted-looking event via Proxy
+            const createTrustedProxy = (evt) => new Proxy(evt, {
+              get(target, prop) {
+                if (prop === 'isTrusted') return true;
+                if (prop === 'nativeEvent') return createTrustedProxy(target);
+                if (prop === 'isDefaultPrevented') return () => false;
+                if (prop === 'isPropagationStopped') return () => false;
+                if (prop === 'persist') return () => {};
+                const val = Reflect.get(target, prop);
+                return typeof val === 'function' ? val.bind(target) : val;
+              }
+            });
+
+            const trustedEvent = createTrustedProxy(nativeEvent);
+
+            // Call React onClick directly via fiber props
+            const props = getReactProps(submitBtn);
+            if (props && typeof props.onClick === 'function') {
+              props.onClick(trustedEvent);
+              console.log(TAG, "✅ Auto-submit via React onClick with trusted Proxy");
+              autoSubmitSuccess = true;
+            } else {
+              // Walk up to find onClick on a parent fiber
+              const fiber = getReactFiber(submitBtn);
+              const handler = fiber ? findFiberHandler(fiber, 'onClick') : null;
+              if (handler) {
+                handler(trustedEvent);
+                console.log(TAG, "✅ Auto-submit via Fiber handler with trusted Proxy");
+                autoSubmitSuccess = true;
+              } else {
+                // Last resort: dispatch event on the element
+                submitBtn.dispatchEvent(nativeEvent);
+                console.log(TAG, "⚠️ Auto-submit fallback: dispatchEvent (may not work)");
+                autoSubmitSuccess = true;
+              }
+            }
+          } catch (e) {
+            console.error(TAG, "❌ Auto-submit click failed:", e);
+          }
+        } else {
+          console.warn(TAG, "⚠️ Submit button not found for auto-submit");
+        }
+      }
+
       window.postMessage(
         {
           type: "FB_RESULT",
           action: "prompt",
           prompt: promptResult,
+          autoSubmitSuccess,
         },
         "*"
       );
