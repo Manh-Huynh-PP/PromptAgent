@@ -43,6 +43,43 @@ function injectStyles() {
     .fb-btn:active { transform: scale(0.96); }
     .fb-btn.done { background: #3FB950; pointer-events: none; opacity: 0.7; }
 
+    .fb-media-container {
+      position: relative !important;
+    }
+    .fb-analyze-btn {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(26, 31, 36, 0.75);
+      color: #E6EDF3;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-family: 'Google Sans', Inter, sans-serif;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      z-index: 100;
+      backdrop-filter: blur(4px);
+      opacity: 0;
+      transition: opacity 0.2s, background 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+    .fb-media-container:hover .fb-analyze-btn {
+      opacity: 1;
+    }
+    .fb-analyze-btn:hover {
+      background: rgba(26, 31, 36, 0.95);
+    }
+    .fb-analyze-btn.done {
+      background: #3FB950;
+      opacity: 1;
+      pointer-events: none;
+    }
+
     .fb-toast {
       position: fixed;
       bottom: 80px;
@@ -212,13 +249,13 @@ async function executePrompt(payload) {
 
     if (result?.prompt?.success) {
       const method = result.prompt.method || "unknown";
-      showToast(`✅ Prompt injected (${method})! Kiểm tra rồi nhấn Generate.`, 4000);
+      showToast(`✅ Prompt injected (${method})! Please verify and press Generate.`, 4000);
     } else {
-      showToast("⚠️ Prompt injection có thể chưa hoàn tất. Kiểm tra lại.", 5000);
+      showToast("⚠️ Prompt injection may be incomplete. Please check manually.", 5000);
     }
   } catch (err) {
     console.warn("[FB Flow] MAIN world timeout, prompt may still work:", err.message);
-    showToast("⚠️ Timeout chờ phản hồi. Kiểm tra prompt.", 4000);
+    showToast("⚠️ Timeout waiting for response. Check prompt manually.", 4000);
   }
 
   console.log("[FB Flow] ✅ executePrompt completed.");
@@ -283,12 +320,13 @@ function scanMedia() {
 
 function addAnalyzeButton(mediaEl, type = "image") {
   const btn = document.createElement("button");
-  btn.className = "fb-btn";
-  btn.textContent = "📤 → Gemini";
+  btn.className = "fb-analyze-btn";
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Gemini`;
 
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
-    btn.textContent = "⏳...";
+    const originalHtml = btn.innerHTML;
+    btn.innerHTML = `⏳...`;
 
     try {
       let dataUrl;
@@ -296,6 +334,19 @@ function addAnalyzeButton(mediaEl, type = "image") {
         dataUrl = captureVideoFrame(mediaEl);
       } else {
         dataUrl = await captureImage(mediaEl);
+      }
+
+      // Copy to clipboard immediately in the Flow tab to ensure we have user gesture focus
+      try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        const pngBlob = new Blob([await blob.arrayBuffer()], { type: "image/png" });
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": pngBlob })
+        ]);
+        console.log("[FB Flow] Image copied to clipboard successfully.");
+      } catch (err) {
+        console.warn("[FB Flow] Clipboard write failed:", err);
       }
 
       chrome.runtime.sendMessage({
@@ -307,28 +358,29 @@ function addAnalyzeButton(mediaEl, type = "image") {
         }
       }, (res) => {
         if (res?.success) {
-          btn.textContent = "✅ Sent";
+          btn.innerHTML = `✅ Sent`;
           btn.classList.add("done");
-          showToast("📤 Đã gửi! Chuyển sang Gemini, Ctrl+V để paste ảnh.", 5000);
+          showToast("📤 Media sent! Press Ctrl+V in Gemini to paste.", 5000);
+          setTimeout(() => {
+             btn.classList.remove("done");
+             btn.innerHTML = originalHtml;
+          }, 3000);
         } else {
-          btn.textContent = "📤 → Gemini";
-          showToast("⚠️ Lỗi gửi. Kiểm tra tab Gemini.", 4000);
+          btn.innerHTML = originalHtml;
+          showToast("⚠️ Send failed. Check Gemini tab.", 4000);
         }
       });
     } catch (err) {
       console.error("[FB Flow]", err);
-      btn.textContent = "📤 → Gemini";
-      showToast("❌ Lỗi capture media.", 3000);
+      btn.innerHTML = originalHtml;
+      showToast("❌ Media capture failed.", 3000);
     }
   });
 
   // Position button on the media element's container
   const container = mediaEl.closest("div") || mediaEl.parentElement;
   if (container) {
-    container.style.position = container.style.position || "relative";
-    btn.style.position = "absolute";
-    btn.style.bottom = "8px";
-    btn.style.right = "8px";
+    container.classList.add("fb-media-container");
     container.appendChild(btn);
   }
 }

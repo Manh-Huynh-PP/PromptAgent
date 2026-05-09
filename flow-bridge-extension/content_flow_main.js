@@ -120,24 +120,53 @@
     
     // Ensure the input is focused so Slate registers it as active
     input.focus();
+    await delay(50);
 
     // Select all existing content using execCommand so the new text replaces it instantly.
-    // Using selectNodeContents manually destroys Slate's internal block structure, causing React removeChild errors.
     try {
       document.execCommand("selectAll", false, null);
     } catch (e) {
       console.warn(TAG, "selectAll failed", e);
     }
+    await delay(50);
 
     let injected = false;
     let method = "";
 
-    // Method 1: Native Paste Event
-    // Slate.js heavily relies on the onPaste event to parse and insert data safely.
-    console.log(TAG, "Attempting Native Paste event...");
+    // Method 1: InputEvent + execCommand (Highly reliable for simulating typing)
+    console.log(TAG, "Attempting InputEvent + execCommand...");
     try {
-      const dt = new DataTransfer();
-      dt.setData("text/plain", text);
+      input.dispatchEvent(new InputEvent("beforeinput", {
+        inputType: "insertText",
+        data: text,
+        bubbles: true,
+        cancelable: true,
+      }));
+      const execSuccess = document.execCommand("insertText", false, text);
+      input.dispatchEvent(new InputEvent("input", {
+        inputType: "insertText",
+        data: text,
+        bubbles: true,
+        cancelable: true,
+      }));
+      
+      if (execSuccess) {
+        console.log(TAG, "✅ execCommand sequence completed.");
+        injected = true;
+        method = "execcommand";
+      } else {
+        console.warn(TAG, "insertText returned false, falling back to Native Paste...");
+      }
+    } catch (e) {
+      console.warn(TAG, "execCommand failed:", e);
+    }
+
+    // Method 2: Native Paste Event
+    if (!injected) {
+      console.log(TAG, "Attempting Native Paste event...");
+      try {
+        const dt = new DataTransfer();
+        dt.setData("text/plain", text);
       const pasteEvent = new ClipboardEvent("paste", {
         clipboardData: dt,
         bubbles: true,
@@ -146,39 +175,13 @@
       });
       input.dispatchEvent(pasteEvent);
       
-      // If default was prevented, React/Slate handled the paste successfully
-      if (pasteEvent.defaultPrevented) {
-        console.log(TAG, "✅ Native paste handled by framework.");
-        injected = true;
-        method = "native_paste";
-      }
-    } catch (e) {
-      console.warn(TAG, "Native paste failed:", e);
-    }
-
-    // Method 2: InputEvent + execCommand
-    // If paste didn't work (or wasn't prevented), we fallback to simulating user typing.
-    if (!injected) {
-      console.log(TAG, "Attempting InputEvent + execCommand...");
-      try {
-        input.dispatchEvent(new InputEvent("beforeinput", {
-          inputType: "insertText",
-          data: text,
-          bubbles: true,
-          cancelable: true,
-        }));
-        document.execCommand("insertText", false, text);
-        input.dispatchEvent(new InputEvent("input", {
-          inputType: "insertText",
-          data: text,
-          bubbles: true,
-          cancelable: true,
-        }));
-        console.log(TAG, "✅ execCommand sequence completed.");
-        injected = true;
-        method = "execcommand";
+        if (pasteEvent.defaultPrevented) {
+          console.log(TAG, "✅ Native paste handled by framework.");
+          injected = true;
+          method = "native_paste";
+        }
       } catch (e) {
-        console.warn(TAG, "execCommand failed:", e);
+        console.warn(TAG, "Native paste failed:", e);
       }
     }
 
@@ -224,6 +227,9 @@
 
       if (data.prompt) {
         promptResult = await injectPrompt(data.prompt);
+      } else {
+        console.error(TAG, "❌ Received empty prompt payload in FB_INJECT_PROMPT");
+        promptResult = { success: false, error: "Empty prompt payload" };
       }
 
       window.postMessage(

@@ -161,11 +161,14 @@ function deepText(el) {
 
 // ── Scan Responses ─────────────────────────────────────────────
 function scan() {
-  // Target code blocks directly instead of whole messages to allow multiple buttons per message
-  const candidates = document.querySelectorAll("pre, code-block, .code-block-wrapper");
+  // Target code elements directly.
+  const candidates = document.querySelectorAll("code-block, pre");
 
   for (const el of candidates) {
     if (el.getAttribute(TAGGED)) continue;
+
+    // Skip if this element contains another candidate to avoid processing wrappers
+    if (el.querySelector("code-block, pre")) continue;
 
     const text = deepText(el);
     if (!text.includes("flow_bridge_prompt")) continue;
@@ -176,7 +179,7 @@ function scan() {
       continue;
     }
 
-    // Tag the specific code block AND all its light DOM descendants
+    // Tag the specific code block AND its children to prevent re-processing
     el.setAttribute(TAGGED, "1");
     el.querySelectorAll("*").forEach(c => c.setAttribute(TAGGED, "1"));
 
@@ -280,43 +283,64 @@ async function handleAnalysis(payload) {
   const { mediaDataUrl, mediaType, analysisPrompt } = payload;
   const prompt = analysisPrompt || "Phân tích hình ảnh này: composition, lighting, color, đề xuất cải thiện.";
 
-  // Step 1: Copy image to clipboard
-  if (mediaType === "image" && mediaDataUrl) {
-    try {
-      const res = await fetch(mediaDataUrl);
-      const blob = await res.blob();
-      const pngBlob = new Blob([await blob.arrayBuffer()], { type: "image/png" });
-      await navigator.clipboard.write([
-        new ClipboardItem({ "image/png": pngBlob })
-      ]);
-      showToast("📋 Image copied! Press Ctrl+V in chat → type prompt → Send", 6000);
-    } catch (err) {
-      console.warn("[FB Gem] Clipboard failed:", err);
-      showToast("⚠️ Auto-copy failed. Use Ctrl+V manually.", 5000);
-    }
-  }
+  // Step 1: Copy image to clipboard is now handled in content_flow.js to ensure user gesture focus!
+  // But we still receive mediaDataUrl to try automatic injection.
 
-  // Step 2: Focus input and type prompt
+  // Step 2: Focus input and prepare for paste
   await new Promise(r => setTimeout(r, 600));
   const input = findGeminiInput();
 
   if (input) {
     input.focus();
-    if (input.isContentEditable) {
-      input.innerHTML = `<p>${prompt}</p>`;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+    
+    // Step 3: Try to automatically paste the image using a synthetic ClipboardEvent
+    let autoPasted = false;
+    if (mediaType === "image" && mediaDataUrl) {
+      try {
+        await new Promise(r => setTimeout(r, 200)); // give React a moment to process the text
+        const res = await fetch(mediaDataUrl);
+        const blob = await res.blob();
+        const uniqueFilename = `flow_image_${Date.now()}_${Math.floor(Math.random() * 1000)}.png`;
+        const file = new File([blob], uniqueFilename, { type: "image/png" });
+        
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        
+        // Method A: Dispatch synthetic paste event directly to the input
+        const pasteEvent = new ClipboardEvent("paste", {
+          bubbles: true,
+          cancelable: true,
+          clipboardData: dataTransfer
+        });
+        input.dispatchEvent(pasteEvent);
+        autoPasted = true;
+        console.log("[FB Gem] Dispatched synthetic paste event with image.");
+
+        // Method B: Find file input and trigger change (backup)
+        if (!autoPasted) {
+          setTimeout(() => {
+            const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'));
+            const imgInput = fileInputs.find(i => i.accept && i.accept.includes('image')) || fileInputs[0];
+            if (imgInput) {
+               imgInput.files = dataTransfer.files;
+               imgInput.dispatchEvent(new Event('change', { bubbles: true }));
+               console.log("[FB Gem] Injected file into file input.");
+            }
+          }, 100);
+        }
+
+      } catch (err) {
+        console.warn("[FB Gem] Synthetic paste failed:", err);
+      }
+    }
+
+    if (autoPasted) {
+       showToast("✅ Image auto-pasted successfully!", 5000);
     } else {
-      input.value = prompt;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+       showToast("📝 Please press Ctrl+V to paste the image!", 5000);
     }
-    showToast("📝 Prompt filled. Paste image (Ctrl+V) then send!", 5000);
   } else {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      showToast("📝 Prompt copied. Paste (Ctrl+V) into chat.", 5000);
-    } catch (_) {
-      showToast(`📝 Type: "${prompt.substring(0, 60)}..."`, 8000);
-    }
+    showToast("⚠️ Chat input not found for pasting.", 5000);
   }
 }
 
