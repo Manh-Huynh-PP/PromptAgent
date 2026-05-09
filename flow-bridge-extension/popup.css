@@ -1,0 +1,402 @@
+/* ============================================
+   PromptAgent Flow Bridge — Design System v3
+   Matching Markdown-ext tokens exactly.
+   Dark. Minimal. Focused.
+   ============================================ */
+
+:root {
+  --bg: #0D0F12;
+  --surface: #14171B;
+  --elevated: #1A1F24;
+  --border: #2A2F36;
+  --muted: #8B949E;
+  --subtle: #6B7280;
+  --text: #E6EDF3;
+  --text-dim: #B3BAC5;
+  --primary: #7C9CFF;
+  --accent: #A789FA;
+  --success: #3FB950;
+  --warning: #D29922;
+  --danger: #F85149;
+  --code-bg: #0F1319;
+  --inline-bg: #1E232A;
+
+  --radius: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 100px;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.2);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.25);
+  --transition: 150ms ease;
+}
+
+/* ── Reset ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  width: 360px;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Header ────────────────────────────────── */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-brand .logo-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.header-brand h1 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--subtle);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  line-height: 1;
+  padding: 0;
+}
+
+.icon-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  border-color: var(--primary);
+  background: rgba(124, 156, 255, 0.08);
+}
+
+/* ── Status Bar ────────────────────────────── */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--subtle);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 4px rgba(63, 185, 80, 0.5);
+  flex-shrink: 0;
+}
+
+/* ── Sections ──────────────────────────────── */
+.section {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section:last-child {
+  border-bottom: none;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--subtle);
+  margin-bottom: 10px;
+}
+
+/* ── Inputs ────────────────────────────────── */
+.input-field {
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.input-field::placeholder {
+  color: var(--subtle);
+}
+
+.input-field:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(124, 156, 255, 0.12);
+}
+
+/* ── Buttons ───────────────────────────────── */
+.btn-primary {
+  width: 100%;
+  padding: 8px 16px;
+  margin-top: 4px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--primary);
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), transform 80ms ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-primary svg {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-primary:hover {
+  background: #6B8AEE;
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+/* ── Project Card ──────────────────────────── */
+.project-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 20px 0;
+  color: var(--subtle);
+  font-size: 12px;
+}
+
+.project-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.project-card:hover {
+  border-color: rgba(124, 156, 255, 0.25);
+  background: var(--elevated);
+}
+
+.project-card .icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius);
+  background: var(--inline-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.project-card .icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.project-card .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-card .name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-card .meta {
+  font-size: 10px;
+  color: var(--subtle);
+  margin-top: 1px;
+}
+
+.project-card .actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.btn-launch {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background var(--transition), transform 80ms ease;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-launch svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-launch:hover {
+  background: #6B8AEE;
+}
+
+.btn-launch:active {
+  transform: scale(0.96);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--subtle);
+  border: 1px solid transparent;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition);
+  padding: 0;
+}
+
+.btn-ghost svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--elevated);
+}
+
+.btn-ghost.btn-delete:hover {
+  color: var(--danger);
+  border-color: rgba(248, 81, 73, 0.3);
+  background: rgba(248, 81, 73, 0.06);
+}
+
+/* ── Edit Mode ─────────────────────────────── */
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.form-actions .btn-primary {
+  flex: 1;
+}
+
+.btn-cancel {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all var(--transition);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.btn-cancel svg {
+  width: 14px;
+  height: 14px;
+}
+
+.btn-cancel:hover {
+  border-color: var(--subtle);
+  color: var(--text);
+  background: var(--elevated);
+}
+
+.btn-update {
+  background: #2EA043 !important;
+}
+
+.btn-update:hover {
+  background: #3FB950 !important;
+}
+
+.btn-ghost.btn-edit:hover {
+  color: #E3B341;
+  border-color: rgba(227, 179, 65, 0.3);
+  background: rgba(227, 179, 65, 0.06);
+}
+
+.project-card.editing {
+  border-color: rgba(124, 156, 255, 0.5);
+  background: var(--elevated);
+}
+
+/* ── Scrollbar ─────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--subtle); }

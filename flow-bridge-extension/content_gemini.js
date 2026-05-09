@@ -1,0 +1,341 @@
+/**
+ * content_gemini.js — PromptAgent Flow Bridge v3.2
+ * Injected on: gemini.google.com
+ *
+ * FIX v3.2:
+ *   - extractBridgeJSON uses balanced-brace counting instead of broken regex
+ *   - scan() pierces shadow DOM of code-block web components
+ *   - Added extensive logging for debugging
+ */
+
+const MARKER = "flow_bridge_prompt";
+const TAGGED = "data-fb-tagged";
+
+// ── Styles ─────────────────────────────────────────────────────
+function injectStyles() {
+  if (document.getElementById("fb-css")) return;
+  const s = document.createElement("style");
+  s.id = "fb-css";
+  s.textContent = `
+    .fb-flow-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin: 8px 0 4px;
+      padding: 7px 14px;
+      background: #7C9CFF;
+      color: #fff;
+      border: none;
+      border-radius: 100px;
+      font-family: 'Google Sans', Inter, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 150ms, transform 80ms;
+      box-shadow: 0 2px 8px rgba(124,156,255,0.25);
+    }
+    .fb-flow-btn:hover { opacity: 0.85; }
+    .fb-flow-btn:active { transform: scale(0.96); }
+    .fb-flow-btn.sent { background: #3FB950; pointer-events: none; }
+
+    .fb-toast-gem {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(10px);
+      background: #1A1F24;
+      color: #E6EDF3;
+      padding: 10px 20px;
+      border-radius: 8px;
+      border: 1px solid #2A2F36;
+      font-family: 'Google Sans', Inter, sans-serif;
+      font-size: 12px;
+      font-weight: 500;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 99999;
+      opacity: 0;
+      transition: opacity 250ms, transform 250ms;
+    }
+    .fb-toast-gem.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  `;
+  document.head.appendChild(s);
+}
+
+function showToast(msg, ms = 4000) {
+  let t = document.querySelector(".fb-toast-gem");
+  if (!t) { t = document.createElement("div"); t.className = "fb-toast-gem"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._tid);
+  t._tid = setTimeout(() => t.classList.remove("show"), ms);
+}
+
+// ── JSON Detection (v3.3 — extract all payloads) ──────────────
+/**
+ * Extract ALL bridge JSON payloads from text using balanced-brace matching.
+ * Supports multiple JSON blocks within the same text element.
+ */
+function extractAllBridgeJSON(text) {
+  const results = [];
+  let searchIdx = 0;
+  
+  while (true) {
+    const markerIdx = text.indexOf("flow_bridge_prompt", searchIdx);
+    if (markerIdx === -1) break;
+
+    // Walk backwards from marker to find the opening {
+    let start = -1;
+    let depth = 0;
+    for (let i = markerIdx; i >= 0; i--) {
+      if (text[i] === '}') depth++;
+      if (text[i] === '{') {
+        if (depth === 0) { start = i; break; }
+        depth--;
+      }
+    }
+
+    if (start === -1) {
+      searchIdx = markerIdx + 1;
+      continue;
+    }
+
+    // Walk forward from start to find the matching closing }
+    depth = 0;
+    let end = -1;
+    for (let i = start; i < text.length; i++) {
+      if (text[i] === '{') depth++;
+      if (text[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          const candidate = text.substring(start, i + 1);
+          try {
+            const o = JSON.parse(candidate);
+            if (o?._type === MARKER) {
+              console.log("[FB Gem] ✅ Found bridge JSON:", o.prompt_text?.substring(0, 60));
+              results.push(o);
+            }
+          } catch (e) {
+            console.warn("[FB Gem] JSON parse failed:", e.message);
+          }
+          break;
+        }
+      }
+    }
+
+    if (end !== -1) {
+      searchIdx = end + 1;
+    } else {
+      searchIdx = markerIdx + 1;
+    }
+  }
+
+  return results;
+}
+
+// ── Text Extraction (handles shadow DOM) ───────────────────────
+/**
+ * Get all text from an element, including shadow DOM content.
+ */
+function deepText(el) {
+  let text = "";
+
+  // Light DOM text
+  text += el.textContent || "";
+
+  // Pierce shadow DOM
+  if (el.shadowRoot) {
+    text += " " + el.shadowRoot.textContent;
+  }
+
+  // Check child code-block and other web components with shadow roots
+  const shadowHosts = el.querySelectorAll("code-block, message-content, model-response");
+  for (const host of shadowHosts) {
+    if (host.shadowRoot) {
+      text += " " + host.shadowRoot.textContent;
+    }
+  }
+
+  return text;
+}
+
+// ── Scan Responses ─────────────────────────────────────────────
+function scan() {
+  // Target code blocks directly instead of whole messages to allow multiple buttons per message
+  const candidates = document.querySelectorAll("pre, code-block, .code-block-wrapper");
+
+  for (const el of candidates) {
+    if (el.getAttribute(TAGGED)) continue;
+
+    const text = deepText(el);
+    if (!text.includes("flow_bridge_prompt")) continue;
+
+    const payloads = extractAllBridgeJSON(text);
+    if (payloads.length === 0) {
+      el.setAttribute(TAGGED, "invalid"); // mark so we don't keep re-parsing invalid json
+      continue;
+    }
+
+    // Tag the specific code block AND all its light DOM descendants
+    el.setAttribute(TAGGED, "1");
+    el.querySelectorAll("*").forEach(c => c.setAttribute(TAGGED, "1"));
+
+    // Inject a button for each payload!
+    payloads.forEach((payload, index) => {
+      injectFlowButton(el, payload, index + 1, payloads.length);
+    });
+    console.log(`[FB Gem] ✅ Injected ${payloads.length} button(s) for code block`);
+  }
+}
+
+function injectFlowButton(el, payload, index = 1, total = 1) {
+  // Normalize: ensure payload has "prompt" field for content_flow.js
+  const normalizedPayload = {
+    ...payload,
+    prompt: payload.prompt_text || payload.prompt
+  };
+  console.log("[FB Gem] Injecting button, prompt:", normalizedPayload.prompt?.substring(0, 60));
+
+  const btn = document.createElement("button");
+  btn.className = "fb-flow-btn";
+  
+  const label = total > 1 ? `Send to Flow (${index}/${total})` : `Send to Flow`;
+  btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> ${label}`;
+
+  btn.addEventListener("click", () => {
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Sent!`;
+    btn.classList.add("sent");
+
+    chrome.runtime.sendMessage({
+      action: "FORWARD_TO_FLOW",
+      payload: normalizedPayload
+    }, (res) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[FB Gem] Send error:", chrome.runtime.lastError.message);
+        showToast("⚠️ Extension error. Reload extension.", 5000);
+        resetBtn();
+        return;
+      }
+      if (res?.success) {
+        showToast("✅ Prompt sent to Flow!");
+        // Reset after 3s so user can re-send if needed
+        setTimeout(resetBtn, 3000);
+      } else {
+        showToast("⚠️ Flow tab not found. Launch project first.", 5000);
+        resetBtn();
+      }
+    });
+
+    function resetBtn() {
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> ${label}`;
+      btn.classList.remove("sent");
+    }
+  });
+
+  // Insert button RIGHT AFTER the code block element
+  if (el.parentElement) {
+    let container = el.nextElementSibling;
+    if (!container || !container.classList.contains("fb-btn-container")) {
+      container = document.createElement("div");
+      container.className = "fb-btn-container";
+      container.style.display = "flex";
+      container.style.gap = "8px";
+      container.style.flexWrap = "wrap";
+      el.parentElement.insertBefore(container, el.nextSibling);
+    }
+    container.appendChild(btn);
+  } else {
+    el.appendChild(btn);
+  }
+}
+
+// ── Gemini Input Finder ────────────────────────────────────────
+function findGeminiInput() {
+  const strategies = [
+    () => document.querySelector("rich-textarea .ql-editor"),
+    () => document.querySelector("rich-textarea [contenteditable='true']"),
+    () => document.querySelector(".ql-editor[contenteditable='true']"),
+    () => document.querySelector("[contenteditable='true'][role='textbox']"),
+    () => document.querySelector(".input-area [contenteditable='true']"),
+    () => document.querySelector("div[contenteditable='true']"),
+    () => document.querySelector("textarea"),
+  ];
+  for (const fn of strategies) {
+    try { const el = fn(); if (el) return el; } catch (_) {}
+  }
+  return null;
+}
+
+// ── Receive Media from Flow ────────────────────────────────────
+chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+  if (req.action === "EXECUTE_ANALYSIS") {
+    console.log("[FB Gem] EXECUTE_ANALYSIS:", req.payload?.mediaType);
+    handleAnalysis(req.payload);
+    sendResponse({ success: true });
+    return true;
+  }
+});
+
+async function handleAnalysis(payload) {
+  const { mediaDataUrl, mediaType, analysisPrompt } = payload;
+  const prompt = analysisPrompt || "Phân tích hình ảnh này: composition, lighting, color, đề xuất cải thiện.";
+
+  // Step 1: Copy image to clipboard
+  if (mediaType === "image" && mediaDataUrl) {
+    try {
+      const res = await fetch(mediaDataUrl);
+      const blob = await res.blob();
+      const pngBlob = new Blob([await blob.arrayBuffer()], { type: "image/png" });
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": pngBlob })
+      ]);
+      showToast("📋 Image copied! Press Ctrl+V in chat → type prompt → Send", 6000);
+    } catch (err) {
+      console.warn("[FB Gem] Clipboard failed:", err);
+      showToast("⚠️ Auto-copy failed. Use Ctrl+V manually.", 5000);
+    }
+  }
+
+  // Step 2: Focus input and type prompt
+  await new Promise(r => setTimeout(r, 600));
+  const input = findGeminiInput();
+
+  if (input) {
+    input.focus();
+    if (input.isContentEditable) {
+      input.innerHTML = `<p>${prompt}</p>`;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      input.value = prompt;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    showToast("📝 Prompt filled. Paste image (Ctrl+V) then send!", 5000);
+  } else {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      showToast("📝 Prompt copied. Paste (Ctrl+V) into chat.", 5000);
+    } catch (_) {
+      showToast(`📝 Type: "${prompt.substring(0, 60)}..."`, 8000);
+    }
+  }
+}
+
+// ── Observer ───────────────────────────────────────────────────
+let tid;
+const obs = new MutationObserver(() => {
+  clearTimeout(tid);
+  tid = setTimeout(scan, 800);
+});
+
+function init() {
+  console.log("[FB Gem] v3.2 loaded on:", window.location.href);
+  injectStyles();
+  scan();
+  obs.observe(document.body, { childList: true, subtree: true });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
+} else {
+  init();
+}

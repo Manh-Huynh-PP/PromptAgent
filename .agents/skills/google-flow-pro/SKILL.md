@@ -48,7 +48,32 @@ When using image-to-video transitions, explicitly describe the movement AND the 
 
 ---
 
+## 🎙️ Google Gemini 3.1 Flash TTS (Text-to-Speech)
+
+### 1. The Director's Note Formula
+`[Audio Profile] + [Scene] + [Director's Notes]`
+
+### 2. In-Transcript Tags
+Use square brackets `[]` within the text to control performance dynamically:
+- **Energy:** `[excitedly]`, `[bored]`, `[reluctantly]`, `[panicked]`, `[amazed]`
+- **Speed:** `[very fast]`, `[very slow]`, `[one painfully slow word at a time]`
+- **Vocal Style:** `[asmr]`, `[deep and loud shouting]`, `[trembling]`, `[whispered]`
+- **Non-Verbal:** `[gasp]`, `[giggles]`, `[sighs]`, `[snorts]`, `[crying]`
+
+### 3. Structured Components (Strict Format)
+- **# AUDIO PROFILE:** Invent a creative name and title (e.g., `# AUDIO PROFILE: Jasper` followed by `## "The Smooth Storyteller"`).
+- **## THE SCENE:** A vivid description of the environment.
+- **### DIRECTOR'S NOTES:** 
+    - **Style:** Detailed emotional persona and tone instructions.
+    - **Pace:** Tempo, rhythm, and flow details.
+    - **Accent:** Specific regional or dialect patterns.
+- **### SAMPLE CONTEXT:** Description of the role or persona's background.
+- **#### TRANSCRIPT:** The exact text to be spoken, utilizing in-transcript tags for performance.
+
+---
+
 ## 🛠️ Best Practices
 - **Positive Framing:** Describe what is there, not what is missing.
 - **Material Consistency:** Always repeat key material descriptions (e.g., "dark brown rustic wood") to prevent jumping between frames.
 - **Negative Constraints:** Use specific exclusions like "The bag must not tear or break."
+- **TTS Precision:** Use phonetic spellings if the model struggles with a specific word.
