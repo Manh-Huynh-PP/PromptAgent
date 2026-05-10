@@ -1,6 +1,10 @@
 # Google Flow Prompt Agent (PromptAgent)
 
-Hệ thống Agent chuyên dụng để xây dựng và quản lý Prompt chất lượng cao cho **Google Flow** (Veo 3.1 & Imagen 4/Nano Banana).
+Hệ thống Agent toàn diện chuyên dụng để xây dựng, quản lý và tự động hóa quy trình tạo Prompt chất lượng cao cho **Google Flow** (Veo 3.1 & Imagen 4/Nano Banana).
+
+Dự án bao gồm 2 thành phần (Agent) riêng biệt, hỗ trợ lẫn nhau trong toàn bộ quy trình làm việc:
+1. **IDE Prompt Agent (Core)**: Hệ thống AI Agent hoạt động trực tiếp trên môi trường IDE. Dùng để lên ý tưởng, cấu trúc prompt bằng các lệnh `/slash`, quản lý file lịch sử và versioning cục bộ.
+2. **[PromptAgent Flow Bridge (Chrome Extension)](./flow-bridge-extension)**: Tiện ích mở rộng trên trình duyệt web, đóng vai trò là cầu nối giữa Google Flow và giao diện Gemini. Cung cấp nút "Gửi đến Gemini" (✨) trên các ảnh/video của Google Flow để chuyển thẳng sang Gemini phân tích.
 
 [Tiếng Việt](#tiếng-việt) | [English](#english)
 
@@ -40,6 +44,12 @@ Dự án này được xây dựng dựa trên các hướng dẫn chính thức
 ---
 
 ## English
+
+A comprehensive Agent system designed to build, manage, and automate high-quality prompt workflows for **Google Flow** (Veo 3.1 & Imagen 4/Nano Banana).
+
+This project consists of 2 distinct components (Agents) that complement each other throughout the workflow:
+1. **IDE Prompt Agent (Core)**: An AI Agent system running directly in your IDE. Used for brainstorming, structuring prompts via `/slash` commands, and managing local version history.
+2. **[PromptAgent Flow Bridge (Chrome Extension)](./flow-bridge-extension)**: A browser extension bridging Google Flow and the Gemini UI. It injects a magic "Send to Gemini" (✨) button on generated assets in Google Flow for instant analysis.
 
 ### 🚀 Key Features
 - **Cinematic DNA Formula**: Automatically structures prompts according to the 5-part standard (Shot, Camera, Subject, Action, Style).
