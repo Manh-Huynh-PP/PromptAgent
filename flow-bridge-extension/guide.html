@@ -3,45 +3,172 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PromptAgent Guide</title>
+  <title>PromptAgent Flow Bridge Guide</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
     body {
-      font-family: 'Inter', sans-serif;
-      background-color: #1a1a1a;
-      color: #fff;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #0f1115;
+      color: #e5e7eb;
       display: flex;
       justify-content: center;
-      align-items: center;
-      height: 100vh;
+      align-items: flex-start;
+      min-height: 100vh;
       margin: 0;
+      padding: 40px 20px;
       line-height: 1.6;
+      box-sizing: border-box;
     }
+    
     .container {
-      background-color: #2a2a2a;
+      background-color: #1e2128;
       padding: 40px;
-      border-radius: 12px;
-      max-width: 600px;
-      text-align: center;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      border-radius: 16px;
+      max-width: 700px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      border: 1px solid #2d313a;
     }
+    
     h1 {
       margin-top: 0;
+      color: #fff;
+      font-size: 28px;
+      text-align: center;
+      margin-bottom: 30px;
     }
+    
+    h2 {
+      color: #fff;
+      font-size: 20px;
+      border-bottom: 1px solid #2d313a;
+      padding-bottom: 8px;
+      margin-top: 32px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lang-section {
+      background-color: #16181d;
+      padding: 24px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      border: 1px solid #2d313a;
+    }
+
+    p {
+      margin-bottom: 16px;
+      color: #9ca3af;
+    }
+
+    ol {
+      color: #d1d5db;
+      padding-left: 20px;
+    }
+    
+    li {
+      margin-bottom: 12px;
+    }
+
+    strong {
+      color: #fff;
+    }
+    
     a {
       color: #3b82f6;
       text-decoration: none;
+      transition: color 0.2s ease;
     }
+    
     a:hover {
       text-decoration: underline;
+      color: #60a5fa;
+    }
+
+    .alert {
+      background-color: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid #3b82f6;
+      padding: 16px;
+      border-radius: 0 8px 8px 0;
+      margin: 24px 0;
+    }
+
+    .alert p {
+      margin: 0;
+      color: #bfdbfe;
+    }
+
+    .icon-sparkle {
+      color: #fbbf24;
+    }
+    
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #2d313a, transparent);
+      margin: 40px 0;
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Welcome to PromptAgent!</h1>
-    <p>You haven't configured a default Gemini Agent URL yet.</p>
-    <p>To use the "New Project" feature seamlessly, please set your default Gemini URL in the extension settings (the gear icon in the popup).</p>
-    <p>If you don't have an agent URL, you can create a custom project manually via the extension popup.</p>
+    <h1>PromptAgent Flow Bridge</h1>
+
+    <!-- VIETNAMESE SECTION -->
+    <div class="lang-section">
+      <h2>🇻🇳 Tiếng Việt</h2>
+      
+      <div class="alert">
+        <p><strong>Thông báo:</strong> Bạn chưa cấu hình đường dẫn (URL) mặc định cho Gemini Agent.</p>
+      </div>
+
+      <p>Trang này xuất hiện vì bạn vừa nhấn nút <strong>"New Project"</strong> nhưng hệ thống chưa biết phải mở cuộc trò chuyện Gemini nào.</p>
+      
+      <h3>Cách thiết lập cấu hình:</h3>
+      <ol>
+        <li>Click vào biểu tượng extension PromptAgent ở góc trên cùng bên phải trình duyệt của bạn (Nếu không thấy, hãy click vào icon hình mảnh ghép 🧩 và ghim tiện ích ra ngoài).</li>
+        <li>Trong bảng điều khiển (popup) vừa hiện ra, nhấp vào <strong>biểu tượng bánh răng ⚙️ (Cài đặt)</strong>.</li>
+        <li>Dán đường dẫn (URL) của Gemini Agent mà bạn muốn sử dụng làm mặc định vào ô nhập liệu.</li>
+        <li>Nhấn <strong>Save (Lưu)</strong>. Từ bây giờ, tính năng tạo dự án mới sẽ hoạt động trơn tru.</li>
+      </ol>
+
+      <h3>Cách sử dụng Flow Bridge:</h3>
+      <ol>
+        <li>Truy cập <a href="https://labs.google/fx/tools/flow" target="_blank">Google Flow</a> và tạo một hình ảnh/video.</li>
+        <li>Bạn sẽ thấy một nút <strong class="icon-sparkle">✨</strong> lấp lánh xuất hiện ở góc trên bên phải của bức ảnh/video.</li>
+        <li>Click vào nút đó để bắn trực tiếp ảnh/video sang tab Gemini mà bạn đã cấu hình để phân tích ngay lập tức!</li>
+      </ol>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ENGLISH SECTION -->
+    <div class="lang-section">
+      <h2>🇬🇧 English</h2>
+      
+      <div class="alert">
+        <p><strong>Notice:</strong> You haven't configured a default Gemini Agent URL yet.</p>
+      </div>
+
+      <p>This page appeared because you clicked the <strong>"New Project"</strong> button, but the system doesn't know which Gemini conversation to open.</p>
+      
+      <h3>How to configure:</h3>
+      <ol>
+        <li>Click the PromptAgent extension icon in the top right corner of your browser (If you don't see it, click the puzzle piece icon 🧩 and pin the extension).</li>
+        <li>In the popup panel, click the <strong>gear icon ⚙️ (Settings)</strong>.</li>
+        <li>Paste the URL of the Gemini Agent you want to use as default into the input field.</li>
+        <li>Click <strong>Save</strong>. The new project feature will now work seamlessly.</li>
+      </ol>
+
+      <h3>How to use Flow Bridge:</h3>
+      <ol>
+        <li>Go to <a href="https://labs.google/fx/tools/flow" target="_blank">Google Flow</a> and generate an image/video.</li>
+        <li>You will see a magic <strong class="icon-sparkle">✨</strong> button appear in the top right corner of the asset.</li>
+        <li>Click it to instantly beam the image/video to your configured Gemini tab for immediate analysis!</li>
+      </ol>
+    </div>
+
   </div>
 </body>
 </html>
