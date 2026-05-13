@@ -1,6 +1,12 @@
 /**
- * popup.js — PromptAgent Flow Bridge v3.1
- * CRUD project manager with Edit mode
+ * sidepanel.js — PromptAgent Flow Bridge v4.0
+ * Side Panel persistent workspace with real-time tab monitoring.
+ *
+ * KEY IMPROVEMENTS over popup.js:
+ *   - Persistent: state survives across tab switches & window focus changes
+ *   - Real-time: chrome.tabs.onUpdated/onRemoved listeners for live status
+ *   - Split View: Launch still opens Gemini + Flow side-by-side (2 windows)
+ *   - Side Panel acts as persistent control panel alongside split view
  */
 
 /** @type {number|null} Index of project being edited, null = add mode */
@@ -8,30 +14,6 @@ let editingIndex = null;
 
 let currentActiveProjectIndex = null;
 let currentActiveGemUrl = null;
-
-// ── Per-project Credit Tracking (global scope) ──────────────
-window._activeProjectId = null;
-
-function updateProjectCreditDisplay(projectId) {
-  const el = document.getElementById('projectCreditText');
-  if (!el) return;
-  chrome.storage.local.get(['credits_by_project'], (res) => {
-    const map = res.credits_by_project || {};
-    // Sum project-specific + any __global__ credits (race condition fallback)
-    const projectCredits = projectId ? (map[projectId] || 0) : 0;
-    const globalCredits = map['__global__'] || 0;
-    const total = projectCredits + globalCredits;
-    el.textContent = total.toString();
-
-    // Auto-migrate __global__ credits into the project if we now know the project
-    if (projectId && globalCredits > 0) {
-      map[projectId] = projectCredits + globalCredits;
-      delete map['__global__'];
-      chrome.storage.local.set({ credits_by_project: map });
-    }
-  });
-}
-
 let currentActiveFlowUrl = null;
 let currentActiveGemTabId = null;
 let currentActiveFlowTabId = null;
@@ -47,6 +29,7 @@ const ICONS = {
   power: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path><line x1="12" y1="2" x2="12" y2="12"></line></svg>'
 };
 
+// ── Initialization ─────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadProjects();
   loadSettings();
@@ -69,12 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('autoNewProjectBtn').addEventListener('click', autoNewProject);
   document.getElementById('fetchTabsBtn').addEventListener('click', fetchCurrentTabs);
   
-  // Credit Estimator — open as new tab
-  document.getElementById('openEstimatorBtn').addEventListener('click', (e) => {
-    e.preventDefault();
-    chrome.tabs.create({ url: chrome.runtime.getURL('caculate.html') });
-  });
-  
   document.getElementById('updateLinksBtn').addEventListener('click', updateActiveLinks);
   const closeBtn = document.getElementById('closeProjectBtn');
   if (closeBtn) closeBtn.addEventListener('click', closeActiveProject);
@@ -88,35 +65,53 @@ document.addEventListener('DOMContentLoaded', () => {
     chrome.storage.sync.set({ autoSubmit: autoCheckbox.checked });
   });
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes.credits_by_project && window._activeProjectId) {
-      const map = changes.credits_by_project.newValue || {};
-      const el = document.getElementById('projectCreditText');
-      if (el) el.textContent = (map[window._activeProjectId] || 0).toString();
-    }
-  });
-
-  document.getElementById('resetCreditBtn').addEventListener('click', () => {
-    const pid = window._activeProjectId;
-    if (!pid) return;
-    chrome.storage.local.get(['credits_by_project'], (res) => {
-      const map = res.credits_by_project || {};
-      map[pid] = 0;
-      chrome.storage.local.set({ credits_by_project: map }, () => {
-        const el = document.getElementById('projectCreditText');
-        if (el) el.textContent = '0';
-      });
-    });
-  });
-
   // Listen for realtime updates from background
   chrome.runtime.onMessage.addListener((request) => {
     if (request.action === "PAIRS_UPDATED") {
       loadProjects();
     }
   });
+
+  // ── REAL-TIME TAB MONITORING (Side Panel exclusive) ──
+  // Unlike popup, Side Panel stays open → we can listen continuously
+  startTabMonitoring();
 });
 
+// ── Real-Time Tab Monitoring ──────────────────────
+// Debounced refresh to avoid rapid-fire updates during page loads
+let refreshTimer = null;
+function debouncedRefresh() {
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(checkActiveTabs, 400);
+}
+
+function startTabMonitoring() {
+  // Tab URL changed or finished loading
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.url || changeInfo.status === 'complete') {
+      debouncedRefresh();
+    }
+  });
+
+  // Tab closed
+  chrome.tabs.onRemoved.addListener(() => {
+    debouncedRefresh();
+  });
+
+  // User switched tabs
+  chrome.tabs.onActivated.addListener(() => {
+    debouncedRefresh();
+  });
+
+  // Window focus changed
+  chrome.windows.onFocusChanged.addListener((windowId) => {
+    if (windowId !== chrome.windows.WINDOW_ID_NONE) {
+      debouncedRefresh();
+    }
+  });
+}
+
+// ── Update Links ──────────────────────────────────
 function updateActiveLinks() {
   if (currentActiveProjectIndex !== null && currentActiveGemUrl && currentActiveFlowUrl) {
     chrome.storage.sync.get(['flowProjects'], (result) => {
@@ -128,7 +123,6 @@ function updateActiveLinks() {
           renderProjects(projects);
           checkActiveTabs();
           
-          // Provide visual feedback
           const btn = document.getElementById('updateLinksBtn');
           const originalText = btn.innerHTML;
           btn.innerHTML = ICONS.check + ' Updated!';
@@ -146,6 +140,7 @@ function closeActiveProject() {
         if (id) chrome.tabs.remove(id, () => { const _ = chrome.runtime.lastError; });
       });
       document.getElementById('activeProjectSection').style.display = 'none';
+      // Side Panel stays open — just refresh after a short delay
       setTimeout(loadProjects, 300);
     }
   }
@@ -174,7 +169,6 @@ function fetchCurrentTabs() {
         let targetGemUrl = null;
         let targetFlowUrl = null;
 
-        // 1. Try to find the exact pair if the current tab is part of one
         if (currentTab) {
           const matchedPair = activePairs.find(p => p.gemTabId === currentTab.id || p.flowTabId === currentTab.id);
           if (matchedPair) {
@@ -185,7 +179,6 @@ function fetchCurrentTabs() {
           }
         }
 
-        // 2. Fallback: Sort tabs by active status and get the most recently active ones
         if (!targetGemUrl || !targetFlowUrl) {
           const gemTabs = tabs.filter(t => t.url && t.url.includes('gemini.google.com'))
                             .sort((a,b) => (b.active ? 1 : 0) - (a.active ? 1 : 0));
@@ -229,6 +222,7 @@ function saveSettings() {
   });
 }
 
+// ── Auto New Project ──────────────────────────────
 function autoNewProject() {
   const newNameInput = document.getElementById('newProjectName');
   const name = newNameInput.value.trim() || "New Project";
@@ -244,11 +238,12 @@ function autoNewProject() {
     chrome.storage.sync.set({ flowProjects: projects }, () => {
       renderProjects(projects);
       newNameInput.value = '';
-      launchSplitView(gemUrl, flowUrl, newId);
+      launchProject(gemUrl, flowUrl, newId);
     });
   });
 }
 
+// ── Load & Render ──────────────────────────────────
 function loadProjects() {
   chrome.storage.sync.get(['flowProjects'], (result) => {
     const projects = result.flowProjects || [];
@@ -289,7 +284,7 @@ function renderProjects(projects) {
     const launchBtn = document.createElement('button');
     launchBtn.className = 'btn-launch';
     launchBtn.innerHTML = ICONS.rocket + ' Launch';
-    launchBtn.onclick = () => launchSplitView(proj.gemUrl, proj.flowUrl, proj.id);
+    launchBtn.onclick = () => launchProject(proj.gemUrl, proj.flowUrl, proj.id);
 
     const closeCardBtn = document.createElement('button');
     closeCardBtn.className = 'btn-ghost btn-close-card';
@@ -322,22 +317,15 @@ function renderProjects(projects) {
 }
 
 // ── Edit Mode ──────────────────────────────────
-
 function startEdit(index, proj) {
   editingIndex = index;
 
-  // Fill form with project data
   document.getElementById('projectName').value = proj.name;
   document.getElementById('gemUrl').value = proj.gemUrl;
   document.getElementById('flowUrl').value = proj.flowUrl;
 
-  // Switch to edit mode UI
   setFormMode('edit');
-
-  // Highlight the card being edited
   loadProjects();
-
-  // Focus the name field
   document.getElementById('projectName').focus();
 }
 
@@ -364,13 +352,11 @@ function setFormMode(mode) {
     cancelBtn.style.display = 'none';
     sectionLabel.textContent = 'Add Custom Project';
     
-    // Re-check active tabs to correctly show activeProjectSection if needed
     checkActiveTabs();
   }
 }
 
-// ── Save (Add or Update) ───────────────────────
-
+// ── Save (Add or Update) ────────────────────────
 function saveProject() {
   const name = document.getElementById('projectName').value.trim();
   const gemUrl = document.getElementById('gemUrl').value.trim();
@@ -385,7 +371,6 @@ function saveProject() {
     const projects = result.flowProjects || [];
 
     if (editingIndex !== null && editingIndex < projects.length) {
-      // Update existing
       projects[editingIndex] = {
         ...projects[editingIndex],
         name,
@@ -395,7 +380,6 @@ function saveProject() {
       editingIndex = null;
       setFormMode('add');
     } else {
-      // Add new
       projects.push({ name, gemUrl, flowUrl, id: Date.now().toString() });
     }
     
@@ -412,21 +396,19 @@ function clearForm() {
   document.getElementById('flowUrl').value = '';
 }
 
-// ── Delete ──────────────────────────────────────
-
+// ── Delete ────────────────────────────────────────
 function deleteProject(index) {
   if (confirm('Delete this project?')) {
     chrome.storage.sync.get(['flowProjects'], (result) => {
       const projects = result.flowProjects || [];
       projects.splice(index, 1);
 
-      // Reset edit mode if deleting the edited project
       if (editingIndex === index) {
         editingIndex = null;
         clearForm();
         setFormMode('add');
       } else if (editingIndex !== null && editingIndex > index) {
-        editingIndex--; // Shift index after removal
+        editingIndex--;
       }
 
       chrome.storage.sync.set({ flowProjects: projects }, () => {
@@ -436,9 +418,13 @@ function deleteProject(index) {
   }
 }
 
-// ── Launch ──────────────────────────────────────
-
-function launchSplitView(gemUrl, flowUrl, projectId) {
+// ── Launch (Split View — Gemini + Flow side by side) ───
+/**
+ * Opens Gemini + Flow as 2 side-by-side windows (split view).
+ * The Side Panel remains persistent as a control workspace —
+ * user can manage projects while both windows are visible.
+ */
+function launchProject(gemUrl, flowUrl, projectId) {
   chrome.runtime.sendMessage({
     action: "OPEN_SPLIT_VIEW",
     gemUrl,
@@ -447,8 +433,7 @@ function launchSplitView(gemUrl, flowUrl, projectId) {
   });
 }
 
-// ── Export / Import ─────────────────────────────
-
+// ── Export / Import ───────────────────────────────
 function exportProjects() {
   chrome.storage.sync.get(['flowProjects'], (result) => {
     const projects = result.flowProjects || [];
@@ -489,10 +474,10 @@ function importProjects(event) {
   reader.readAsText(file);
 }
 
-// ── Active Tabs Logic ─────────────────────────
-
+// ── Active Tabs Logic ──────────────────────────────
 function checkActiveTabs() {
   chrome.runtime.sendMessage({ action: "GET_ACTIVE_PAIRS" }, (response) => {
+    if (chrome.runtime.lastError) return; // Side panel may be checking while bg is restarting
     const activePairs = response?.activePairs || [];
     chrome.tabs.query({}, (tabs) => {
       chrome.tabs.query({ active: true, lastFocusedWindow: true }, (currentTabs) => {
@@ -521,21 +506,18 @@ function checkActiveTabs() {
           currentActiveGemTabId = null;
           currentActiveFlowTabId = null;
 
-          // Keep track of tabs already assigned to a project to prevent false positives
           let claimedTabIds = new Set();
           activePairs.forEach(p => {
             claimedTabIds.add(p.gemTabId);
             claimedTabIds.add(p.flowTabId);
           });
 
-          // Determine target project ID based on the currently active tab (if any matches)
           let targetProjectId = null;
           if (currentTab) {
             const matchedPair = activePairs.find(p => p.gemTabId === currentTab.id || p.flowTabId === currentTab.id);
             if (matchedPair) {
               targetProjectId = matchedPair.projectId;
             } else {
-              // Fallback: check URLs of current tab
               const tabUrl = currentTab.url || "";
               const matchedProject = projects.find(p => {
                 const gemFragment = urlToFragment(p.gemUrl);
@@ -554,7 +536,6 @@ function checkActiveTabs() {
             const closeCardBtn = card.querySelector('.btn-close-card');
             if (!proj || !launchBtn) return;
 
-            // Check against activePairs first
             const pair = activePairs.find(p => p.projectId === proj.id);
             let gemTab, flowTab;
 
@@ -563,8 +544,6 @@ function checkActiveTabs() {
               flowTab = tabs.find(t => t.id === pair.flowTabId);
             }
             
-            // Fallback for pre-existing tabs or auto-detected but not launched via extension
-            // Also acts as a safety fallback if the registered pair's tabs are closed/invalid
             if (!gemTab || !flowTab) {
               const gemFragment = urlToFragment(proj.gemUrl);
               const flowFragment = urlToFragment(proj.flowUrl);
@@ -577,7 +556,6 @@ function checkActiveTabs() {
               claimedTabIds.add(flowTab.id);
               activeFound = true;
               
-              // Only set currentActiveProjectIndex if it's the target project, or if we haven't found any target project yet and this is the first active one
               if (currentActiveProjectIndex === null || proj.id === targetProjectId) {
                 currentActiveProjectIndex = index;
                 currentActiveGemUrl = gemTab.url;
@@ -588,7 +566,7 @@ function checkActiveTabs() {
               
               card.classList.add('active');
               launchBtn.innerHTML = ICONS.rocket + ' Focus';
-              launchBtn.onclick = () => focusTabs(gemTab.id, flowTab.id, launchBtn);
+              launchBtn.onclick = () => focusTabs(gemTab.id, flowTab.id);
               if (closeCardBtn) {
                  closeCardBtn.style.display = 'inline-flex';
                  closeCardBtn.onclick = () => closeProjectTabs(gemTab.id, flowTab.id);
@@ -596,7 +574,7 @@ function checkActiveTabs() {
             } else {
               card.classList.remove('active');
               launchBtn.innerHTML = ICONS.rocket + ' Launch';
-              launchBtn.onclick = () => launchSplitView(proj.gemUrl, proj.flowUrl, proj.id);
+              launchBtn.onclick = () => launchProject(proj.gemUrl, proj.flowUrl, proj.id);
               if (closeCardBtn) {
                  closeCardBtn.style.display = 'none';
               }
@@ -642,11 +620,7 @@ function checkActiveTabs() {
           formSection.style.display = 'none';
           activeSection.style.display = 'block';
           if (currentActiveProjectIndex !== null) {
-            const activeProj = projects[currentActiveProjectIndex];
-            document.getElementById('activeProjectInfo').textContent = activeProj.name;
-            // Update per-project credit display
-            window._activeProjectId = activeProj.id;
-            updateProjectCreditDisplay(activeProj.id);
+            document.getElementById('activeProjectInfo').textContent = projects[currentActiveProjectIndex].name;
           }
         } else if (editingIndex === null) {
           formSection.style.display = 'block';
@@ -659,11 +633,11 @@ function checkActiveTabs() {
         const statusDot = document.getElementById('globalStatusDot');
         const statusText = document.getElementById('globalStatusText');
         if (activeFound) {
-          statusDot.style.background = '#10b981'; // Green
+          statusDot.style.background = '#10b981';
           statusDot.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.4)';
           statusText.textContent = 'Active project connected';
         } else {
-          statusDot.style.background = 'var(--subtle)'; // Gray
+          statusDot.style.background = 'var(--subtle)';
           statusDot.style.boxShadow = 'none';
           statusText.textContent = 'No active projects';
         }
@@ -678,23 +652,11 @@ function urlToFragment(url) {
     const urlObj = new URL(url);
     return urlObj.hostname + urlObj.pathname;
   } catch (e) {
-    // Fallback if it's not a valid URL (like a chrome-extension:// path or just fragment)
     return url.replace(/^\*:\/\//, "").replace(/\/?\*$/, "").split('?')[0].split('#')[0];
   }
 }
 
-function focusTabs(gemTabId, flowTabId, btnEl) {
-  // Visual feedback: show restoring state
-  if (btnEl) {
-    const originalHtml = btnEl.innerHTML;
-    btnEl.innerHTML = ICONS.rocket + ' Restoring...';
-    btnEl.disabled = true;
-    setTimeout(() => {
-      btnEl.innerHTML = originalHtml;
-      btnEl.disabled = false;
-    }, 1500);
-  }
-
+function focusTabs(gemTabId, flowTabId) {
   chrome.runtime.sendMessage({
     action: "FOCUS_TABS",
     gemTabId,

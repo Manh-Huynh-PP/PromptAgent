@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "PromptAgent Flow Bridge",
-  "version": "3.0.0",
-  "description": "Orchestrates prompts between Gemini GEM and Google Flow with a Split View workspace.",
+  "version": "3.5.1",
+  "description": "Orchestrates prompts between Gemini GEM and Google Flow with split-view workspace management.",
   "icons": {
     "16": "prompt_icon_16.png",
     "32": "prompt_icon_32.png",
@@ -15,7 +15,8 @@
     "tabs",
     "activeTab",
     "system.display",
-    "clipboardWrite"
+    "clipboardWrite",
+    "scripting"
   ],
   "host_permissions": [
     "*://gemini.google.com/*",
@@ -24,7 +25,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "PromptAgent Workspace"
+    "default_title": "PromptAgent Bridge"
   },
   "background": {
     "service_worker": "background.js"

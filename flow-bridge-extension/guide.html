@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PromptAgent Flow Bridge Guide</title>
+  <!-- Redirect to blog post -->
+  <meta http-equiv="refresh" content="0; url=https://manhhuynh.work/blog/promptagent-flow-bridge-guide/">
+  <script>
+    window.location.replace("https://manhhuynh.work/blog/promptagent-flow-bridge-guide/");
+  </script>
+
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
@@ -63,7 +69,7 @@
       color: #9ca3af;
     }
 
-    ol {
+    ol, ul {
       color: #d1d5db;
       padding-left: 20px;
     }
@@ -113,6 +119,9 @@
 </head>
 <body>
   <div class="container">
+    <div style="text-align: center; margin-bottom: 20px;">
+      <img src="prompt_icon_128.png" alt="PromptAgent Logo" style="width: 80px; height: 80px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+    </div>
     <h1>PromptAgent Flow Bridge</h1>
 
     <!-- VIETNAMESE SECTION -->
@@ -127,10 +136,16 @@
       
       <h3>Cách thiết lập cấu hình:</h3>
       <ol>
+        <li><strong>Tạo Gemini Agent (Gem):</strong> Truy cập Gemini và tạo một Gem mới.
+          <ul>
+            <li>Copy nội dung trong file <code>gem_system_instructions.md</code> dán vào ô System Instructions của Gem.</li>
+            <li>Upload 2 file <code>gem_knowledge.md</code> và <code>gem_examples.md</code> vào phần Knowledge (Tài liệu) của Gem.</li>
+          </ul>
+        </li>
         <li>Click vào biểu tượng extension PromptAgent ở góc trên cùng bên phải trình duyệt của bạn (Nếu không thấy, hãy click vào icon hình mảnh ghép 🧩 và ghim tiện ích ra ngoài).</li>
         <li>Trong bảng điều khiển (popup) vừa hiện ra, nhấp vào <strong>biểu tượng bánh răng ⚙️ (Cài đặt)</strong>.</li>
-        <li>Dán đường dẫn (URL) của Gemini Agent mà bạn muốn sử dụng làm mặc định vào ô nhập liệu.</li>
-        <li>Nhấn <strong>Save (Lưu)</strong>. Từ bây giờ, tính năng tạo dự án mới sẽ hoạt động trơn tru.</li>
+        <li>Dán đường dẫn (URL) của Gem bạn vừa tạo (ví dụ: <code>https://gemini.google.com/u/1/app/xxxxxxx</code>) vào ô nhập liệu.</li>
+        <li>Nhấn <strong>Save (Lưu)</strong>. Từ bây giờ, tiện ích sẽ kết nối tự động với Flow Director Gem của bạn.</li>
       </ol>
 
       <h3>Cách sử dụng Flow Bridge:</h3>
@@ -139,6 +154,15 @@
         <li>Bạn sẽ thấy một nút <strong class="icon-sparkle">✨</strong> lấp lánh xuất hiện ở góc trên bên phải của bức ảnh/video.</li>
         <li>Click vào nút đó để bắn trực tiếp ảnh/video sang tab Gemini mà bạn đã cấu hình để phân tích ngay lập tức!</li>
       </ol>
+
+      <h3 style="margin-top: 24px;">Giao tiếp an toàn (Slash Commands):</h3>
+      <p>Để tránh Gemini tự động gọi nhầm công cụ tạo ảnh/video, hãy luôn dùng các lệnh sau khi chat:</p>
+      <ul>
+        <li><code>/img [mô tả]</code> : Viết prompt tạo ảnh (Nano Banana).</li>
+        <li><code>/video [mô tả]</code> : Viết prompt tạo video (Veo 3.1).</li>
+        <li><code>/tts [mô tả]</code> : Viết prompt giọng đọc (Text-to-speech).</li>
+        <li><code>/concept [mô tả]</code> : Suy nghĩ, brainstorm ý tưởng.</li>
+      </ul>
     </div>
 
     <div class="divider"></div>
@@ -155,10 +179,16 @@
       
       <h3>How to configure:</h3>
       <ol>
+        <li><strong>Create a Gemini Agent (Gem):</strong> Go to Gemini and create a new Gem.
+          <ul>
+            <li>Copy the contents of <code>gem_system_instructions.md</code> and paste it into the Gem's System Instructions.</li>
+            <li>Upload the <code>gem_knowledge.md</code> and <code>gem_examples.md</code> files into the Gem's Knowledge section.</li>
+          </ul>
+        </li>
         <li>Click the PromptAgent extension icon in the top right corner of your browser (If you don't see it, click the puzzle piece icon 🧩 and pin the extension).</li>
         <li>In the popup panel, click the <strong>gear icon ⚙️ (Settings)</strong>.</li>
-        <li>Paste the URL of the Gemini Agent you want to use as default into the input field.</li>
-        <li>Click <strong>Save</strong>. The new project feature will now work seamlessly.</li>
+        <li>Paste the URL of your newly created Gem (e.g., <code>https://gemini.google.com/u/1/app/xxxxxxx</code>) into the input field.</li>
+        <li>Click <strong>Save</strong>. The extension will now automatically connect to your Flow Director Gem.</li>
       </ol>
 
       <h3>How to use Flow Bridge:</h3>
@@ -167,6 +197,15 @@
         <li>You will see a magic <strong class="icon-sparkle">✨</strong> button appear in the top right corner of the asset.</li>
         <li>Click it to instantly beam the image/video to your configured Gemini tab for immediate analysis!</li>
       </ol>
+
+      <h3 style="margin-top: 24px;">Safe Communication (Slash Commands):</h3>
+      <p>To prevent Gemini from accidentally generating media itself, always use these commands:</p>
+      <ul>
+        <li><code>/img [description]</code> : Write an image prompt (Nano Banana).</li>
+        <li><code>/video [description]</code> : Write a video prompt (Veo 3.1).</li>
+        <li><code>/tts [description]</code> : Write a text-to-speech prompt.</li>
+        <li><code>/concept [description]</code> : Brainstorm concepts.</li>
+      </ul>
     </div>
 
     <!-- FOOTER -->

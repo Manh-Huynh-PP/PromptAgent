@@ -1,5 +1,5 @@
 /**
- * content_flow.js — PromptAgent Flow Bridge v3
+ * content_flow.js — PromptAgent Flow Bridge v3.5
  * Injected on: labs.google/fx/tools/flow/*
  *
  * VERIFIED via live DOM inspection (May 2026):
@@ -12,168 +12,226 @@
  * 2. Observe generated media → inject "📤 Send to Gemini" buttons
  */
 
-const INJECTED_ATTR = "data-fb-injected";
+const INJECTED_ATTR = "data-sys-injected";
 
-// ── CSS Injection ──────────────────────────────────────────────
-function injectStyles() {
-  if (document.getElementById("fb-styles")) return;
-  const style = document.createElement("style");
-  style.id = "fb-styles";
-  style.textContent = `
-    .fb-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      margin: 4px;
-      padding: 6px 12px;
-      background: #242424;
-      color: #F5F5F5;
-      border: 1px solid #333333;
-      border-radius: 100px;
-      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      z-index: 9999;
-      position: relative;
-    }
-    .fb-btn:hover { 
-      background: #333333; 
-      border-color: #444444;
-      transform: translateY(-1px);
-      box-shadow: 0 6px 16px rgba(0,0,0,0.2);
-    }
-    .fb-btn:active { 
-      transform: translateY(1px) scale(0.98); 
-      box-shadow: 0 2px 4px rgba(0,0,0,0.15);
-    }
-    .fb-btn.done { 
-      background: #EBEBEB; 
-      color: #121212; 
-      border: 1px solid #EBEBEB; 
-      pointer-events: none; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
-      transform: none;
-    }
-
-    .fb-media-container {
-      position: relative !important;
-    }
-
-    /* ── Base button (medium — default) ───────────────── */
-    .fb-analyze-btn {
-      position: absolute;
-      top: 8px;
-      left: 8px;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
-      color: #ffffff;
-      border: 1px solid rgba(255,255,255,0.15);
-      border-radius: 50%;
-      padding: 8px;
-      font-size: 0;
-      line-height: 0;
-      cursor: pointer;
-      z-index: 100;
-      opacity: 0;
-      transform: translateY(-6px) scale(0.95);
-      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.25);
-    }
-    .fb-analyze-btn svg {
-      width: 18px;
-      height: 18px;
-      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* ── Small variant (grid items < 200px) ─────────── */
-    .fb-analyze-btn.fb-btn-sm {
-      padding: 5px;
-      top: 4px;
-      left: 4px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    .fb-analyze-btn.fb-btn-sm svg {
-      width: 12px;
-      height: 12px;
-    }
-
-    /* ── Large variant (containers > 400px) ─────────── */
-    .fb-analyze-btn.fb-btn-lg {
-      padding: 12px;
-      top: 12px;
-      left: 12px;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-    }
-    .fb-analyze-btn.fb-btn-lg svg {
-      width: 22px;
-      height: 22px;
-    }
-
-    /* ── Interaction states ──────────────────────────── */
-    .fb-media-container:hover .fb-analyze-btn {
-      opacity: 1;
-      transform: translateY(0) scale(1);
-    }
-    .fb-analyze-btn:hover {
-      background: rgba(0, 0, 0, 1);
-      transform: translateY(-2px) scale(1.05) !important;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.4);
-      border-color: rgba(255,255,255,0.3);
-    }
-    .fb-analyze-btn:active {
-      transform: translateY(1px) scale(0.95) !important;
-    }
-    .fb-analyze-btn.done {
-      background: #ffffff;
-      color: #000000;
-      border-color: #ffffff;
-      opacity: 1;
-      transform: translateY(0) scale(1) !important;
-      pointer-events: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-    }
-    .fb-analyze-btn:hover svg {
-      transform: scale(1.1);
-    }
-
-    .fb-toast {
-      position: fixed;
-      bottom: 80px;
-      left: 50%;
-      transform: translateX(-50%) translateY(20px) scale(0.95);
-      background: rgba(0, 0, 0, 0.9);
-      backdrop-filter: blur(8px);
-      color: #ffffff;
-      padding: 12px 24px;
-      border-radius: 100px;
-      border: 1px solid rgba(255,255,255,0.1);
-      font-family: 'Google Sans', Inter, -apple-system, sans-serif;
-      font-size: 13px;
-      font-weight: 500;
-      letter-spacing: 0.2px;
-      box-shadow: 0 12px 32px rgba(0,0,0,0.3);
-      z-index: 99999;
-      opacity: 0;
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      pointer-events: none;
-    }
-    .fb-toast.show { 
-      opacity: 1; 
-      transform: translateX(-50%) translateY(0) scale(1); 
-    }
-  `;
-  document.head.appendChild(style);
+// ── Context Guard ──────────────────────────────────────────────
+function isContextValid() {
+  try {
+    return !!chrome.runtime?.id;
+  } catch (_) {
+    return false;
+  }
 }
 
+function safeSendMessage(message) {
+  return new Promise((resolve, reject) => {
+    if (!isContextValid()) {
+      showReloadBanner();
+      reject(new Error("Extension context invalidated"));
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || "Unknown runtime error";
+          if (msg.includes("invalidated") || msg.includes("Extension context")) {
+            showReloadBanner();
+          }
+          reject(new Error(msg));
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (err) {
+      showReloadBanner();
+      reject(err);
+    }
+  });
+}
+
+let reloadBannerShown = false;
+function showReloadBanner() {
+  if (reloadBannerShown) return;
+  reloadBannerShown = true;
+
+  const banner = document.createElement('div');
+  banner.id = 'fb-reload-banner';
+  banner.innerHTML = `
+    <span>⚠️ PromptAgent extension đã được cập nhật. Vui lòng <strong>reload trang này</strong> (F5) để tiếp tục.</span>
+    <button onclick="location.reload()" style="
+      margin-left: 12px; padding: 6px 16px; background: #fff; color: #1a1a1a;
+      border: none; border-radius: 20px; font-weight: 600; cursor: pointer;
+      font-size: 13px;
+    ">↻ Reload</button>
+  `;
+  Object.assign(banner.style, {
+    position: 'fixed', top: '0', left: '0', right: '0', zIndex: '999999',
+    padding: '12px 20px', background: '#ff6b35', color: '#fff',
+    fontFamily: "'Google Sans', Inter, sans-serif", fontSize: '14px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    animation: 'fbSlideDown 0.3s ease-out'
+  });
+
+  const style = document.createElement('style');
+  style.textContent = `@keyframes fbSlideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }`;
+  document.head.appendChild(style);
+  document.body.appendChild(banner);
+  console.warn('[FB Flow] Extension context invalidated — reload banner shown.');
+}
+
+const UI_STYLES = `
+  .sys-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 4px;
+    padding: 6px 12px;
+    background: #242424;
+    color: #F5F5F5;
+    border: 1px solid #333333;
+    border-radius: 100px;
+    font-family: 'Google Sans', Inter, -apple-system, sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 9999;
+    position: relative;
+  }
+  .sys-btn:hover { 
+    background: #333333; 
+    border-color: #444444;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.2);
+  }
+  .sys-btn:active { 
+    transform: translateY(1px) scale(0.98); 
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+  .sys-btn.done { 
+    background: #EBEBEB; 
+    color: #121212; 
+    border: 1px solid #EBEBEB; 
+    pointer-events: none; 
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); 
+    transform: none;
+  }
+
+  /* ── Base button (medium — default) ───────────────── */
+  .sys-act-btn {
+    position: absolute;
+    /* top/left injected dynamically */
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    padding: 8px;
+    font-size: 0;
+    line-height: 0;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+    pointer-events: none; /* block clicks when invisible */
+  }
+  .sys-act-btn svg {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* ── Small variant (grid items < 200px) ─────────── */
+  .sys-act-btn.sys-btn-sm {
+    padding: 5px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  .sys-act-btn.sys-btn-sm svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  /* ── Large variant (containers > 400px) ─────────── */
+  .sys-act-btn.sys-btn-lg {
+    padding: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .sys-act-btn.sys-btn-lg svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* ── Interaction states ──────────────────────────── */
+  .sys-act-btn.hovered {
+    opacity: 0.9;
+    transform: scale(1);
+    pointer-events: auto; /* clickable when hovered */
+  }
+  .sys-act-btn:hover {
+    background: rgba(0, 0, 0, 1);
+    opacity: 1 !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+    border-color: rgba(255,255,255,0.3);
+  }
+  .sys-act-btn:active {
+    transform: scale(0.95) !important;
+  }
+  .sys-act-btn.done {
+    background: #ffffff;
+    color: #000000;
+    border-color: #ffffff;
+    opacity: 1 !important;
+    transform: scale(1) !important;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  }
+  .sys-act-btn:hover svg {
+    transform: scale(1.1);
+  }
+
+  .sys-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px) scale(0.95);
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(8px);
+    color: #ffffff;
+    padding: 12px 24px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-family: 'Google Sans', Inter, -apple-system, sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+    z-index: 99999;
+    opacity: 0;
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .sys-toast.show { 
+    opacity: 1; 
+    transform: translateX(-50%) translateY(0) scale(1); 
+  }
+`;
+
 function showToast(msg, ms = 3500) {
-  let t = document.querySelector(".fb-toast");
-  if (!t) { t = document.createElement("div"); t.className = "fb-toast"; document.body.appendChild(t); }
+  const shadow = getShadowRoot();
+  if (!shadow) return;
+  let t = shadow.querySelector(".sys-toast");
+  if (!t) { 
+    t = document.createElement("div"); 
+    t.className = "sys-toast"; 
+    shadow.appendChild(t); 
+  }
   t.textContent = msg;
   t.classList.add("show");
   clearTimeout(t._tid);
@@ -280,19 +338,21 @@ const SUBMIT_STRATEGIES = [
   }
 ];
 
-// ── Message Listener ───────────────────────────────────────────
-chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
-  if (req.action === "EXECUTE_PROMPT") {
-    console.log("[FB Flow] EXECUTE_PROMPT received:", req.payload);
-    executePrompt(req.payload)
-      .then(() => sendResponse({ success: true }))
-      .catch(err => {
-        console.error("[FB Flow] Error:", err);
-        sendResponse({ success: false, error: err.message });
-      });
-    return true; // async
-  }
-});
+// ── Message Listener (guarded) ─────────────────────────────────
+try {
+  chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+    if (req.action === "EXECUTE_PROMPT") {
+      executePrompt(req.payload)
+        .then(() => sendResponse({ success: true }))
+        .catch(err => {
+          sendResponse({ success: false, error: err.message });
+        });
+      return true; // async
+    }
+  });
+} catch (_) {
+  console.warn('[FB Flow] Cannot register message listener — context invalidated.');
+}
 
 /**
  * Fill the prompt and optionally trigger generation.
@@ -302,9 +362,6 @@ async function executePrompt(payload) {
   const { prompt, autoSubmit } = payload;
   if (!prompt) throw new Error("No prompt");
 
-  console.log("[FB Flow] Delegating to MAIN world script...");
-  console.log("[FB Flow] Prompt:", prompt.substring(0, 60));
-
   // Wait for the prompt input to exist in DOM first
   try {
     await waitFor(PROMPT_STRATEGIES, 8000);
@@ -312,11 +369,14 @@ async function executePrompt(payload) {
     throw new Error("Prompt input not found on page");
   }
 
+  // Ensure MAIN world script is injected on-demand
+  await ensureMainWorldScript();
+
   // Send message to MAIN world script
   const resultPromise = waitForMainWorldResult("prompt", 30000);
 
   window.postMessage({
-    type: "FB_INJECT_PROMPT",
+    type: "sys_cmd_req",
     prompt: prompt,
     autoSubmit: !!autoSubmit
   }, "*");
@@ -324,29 +384,23 @@ async function executePrompt(payload) {
   // Wait for confirmation from MAIN world
   try {
     const result = await resultPromise;
-    console.log("[FB Flow] MAIN world result:", result);
 
     if (result?.prompt?.success) {
-      const method = result.prompt.method || "unknown";
-
       if (autoSubmit) {
         if (result.autoSubmitSuccess) {
-          showToast(`🚀 Prompt injected & generating! (${method})`, 4000);
+          showToast(`🚀 Prompt injected & generating!`, 4000);
         } else {
-          showToast(`✅ Prompt injected (${method}). Generate button not found — click manually.`, 5000);
+          showToast(`✅ Prompt injected. Generate button not found — click manually.`, 5000);
         }
       } else {
-        showToast(`✅ Prompt injected (${method})! Press Generate.`, 4000);
+        showToast(`✅ Prompt injected! Press Generate.`, 4000);
       }
     } else {
       showToast("⚠️ Prompt injection may be incomplete. Please check manually.", 5000);
     }
   } catch (err) {
-    console.warn("[FB Flow] MAIN world timeout, prompt may still work:", err.message);
     showToast("⚠️ Timeout waiting for response. Check prompt manually.", 4000);
   }
-
-  console.log("[FB Flow] ✅ executePrompt completed.");
 }
 
 /**
@@ -362,7 +416,7 @@ function waitForMainWorldResult(expectedAction, timeout = 20000) {
     function handler(event) {
       if (event.source !== window) return;
       const data = event.data;
-      if (data?.type === "FB_RESULT" && data?.action === expectedAction) {
+      if (data?.type === "sys_cmd_res" && data?.action === expectedAction) {
         clearTimeout(timer);
         window.removeEventListener("message", handler);
         resolve(data);
@@ -373,143 +427,368 @@ function waitForMainWorldResult(expectedAction, timeout = 20000) {
   });
 }
 
+// Global listener for credit usage reporting from MAIN world
+window.addEventListener("message", (event) => {
+  if (event.source !== window) return;
+  const data = event.data;
+  if (data?.type === "sys_report_usage") {
+    safeSendMessage({
+      action: "RECORD_USAGE",
+      cost: data.cost,
+      actionType: data.actionType
+    }).catch(err => console.warn("[FB Flow] Failed to report usage:", err.message));
+  }
+});
+
 // ── Old applySettings removed — now handled by content_flow_main.js (MAIN world) ──
 
+// ── On-demand MAIN World Script Injection ──────────────────────
+let mainScriptInjected = false;
 
-// ── Reverse Flow: Scan Generated Media ─────────────────────────
-function scanMedia() {
-  // Flow renders generated images as <img> in the main grid area
-  const imgs = document.querySelectorAll("img");
-  for (const img of imgs) {
-    if (img.getAttribute(INJECTED_ATTR)) continue;
-    
-    // Filter: skip tiny icons, logos, avatars
-    const rect = img.getBoundingClientRect();
-    if (rect.width < 80 || rect.height < 80) continue;
-    
-    // Skip nav/header images
-    const src = img.src || "";
-    if (src.includes("favicon") || src.includes("icon") || src.includes("logo") || src.includes("avatar")) continue;
-
-    img.setAttribute(INJECTED_ATTR, "true");
-    addAnalyzeButton(img);
+function ensureMainWorldScript() {
+  // Script is now auto-injected via manifest (world: MAIN).
+  // Check the guard flag set by content_flow_main.js itself.
+  if (mainScriptInjected || window.__reactContextSyncLoaded) {
+    mainScriptInjected = true;
+    return Promise.resolve();
   }
 
-  // Also check for video elements
-  const videos = document.querySelectorAll("video");
-  for (const vid of videos) {
-    if (vid.getAttribute(INJECTED_ATTR)) continue;
-    const rect = vid.getBoundingClientRect();
-    // On detail pages, video may not have loaded yet — skip size check if 0 but src exists
-    if (rect.width < 80 || rect.height < 80) {
-      if (rect.width === 0 && rect.height === 0 && (vid.src || vid.querySelector("source"))) {
-        // Video not rendered yet — mark for retry
-        continue;
-      }
-      continue;
-    }
-    vid.setAttribute(INJECTED_ATTR, "true");
-    addAnalyzeButton(vid, "video");
-  }
-}
-
-function addAnalyzeButton(mediaEl, type = "image") {
-  const btn = document.createElement("button");
-  btn.className = "fb-analyze-btn";
-  btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L9.5 9.5L2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z" fill="currentColor"/><path d="M17 3l3 3M4 18l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
-
-  btn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    const originalHtml = btn.innerHTML;
-    btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" opacity="0.3"/><path d="M12 2v4" stroke-width="3"/></svg>`;
-
-    try {
-      let dataUrl;
-      if (type === "video") {
-        dataUrl = captureVideoFrame(mediaEl);
+  return safeSendMessage({ action: "INJECT_MAIN_SCRIPT" })
+    .then((res) => {
+      if (res?.success) {
+        mainScriptInjected = true;
+        return new Promise(resolve => setTimeout(resolve, 250));
       } else {
-        dataUrl = await captureImage(mediaEl);
+        throw new Error(res?.error || "Injection failed");
       }
+    });
+}
 
-      // Copy to clipboard immediately in the Flow tab to ensure we have user gesture focus
-      try {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const pngBlob = new Blob([await blob.arrayBuffer()], { type: "image/png" });
-        await navigator.clipboard.write([
-          new ClipboardItem({ "image/png": pngBlob })
-        ]);
-        console.log("[FB Flow] Image copied to clipboard successfully.");
-      } catch (err) {
-        console.warn("[FB Flow] Clipboard write failed:", err);
-      }
 
-      chrome.runtime.sendMessage({
-        action: "FORWARD_TO_GEMINI",
-        payload: {
-          mediaDataUrl: dataUrl,
-          mediaType: type,
-          analysisPrompt: "Phân tích chi tiết: composition, lighting, color, và đề xuất cải thiện."
-        }
-      }, (res) => {
-        if (res?.success) {
-          btn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
-          btn.classList.add("done");
-          showToast("📤 Media sent! Press Ctrl+V in Gemini to paste.", 5000);
-          setTimeout(() => {
-             btn.classList.remove("done");
-             btn.innerHTML = originalHtml;
-          }, 3000);
-        } else {
-          btn.innerHTML = originalHtml;
-          showToast("⚠️ Send failed. Check Gemini tab.", 4000);
-        }
-      });
-    } catch (err) {
-      console.error("[FB Flow]", err);
-      btn.innerHTML = originalHtml;
-      showToast("❌ Media capture failed.", 3000);
-    }
-  });
+// ── Reverse Flow: Absolute Overlay ─────────────────────────────
+let overlayContainer = null;
+let activeMedia = null;
+let activeBtn = null;
+let shadowRootNode = null;
 
-  // Position button on a container with actual visible dimensions
-  let container = mediaEl.parentElement;
-  // Walk up to find a div with real dimensions (not a tiny wrapper)
-  while (container && container !== document.body) {
-    const cr = container.getBoundingClientRect();
-    if (container.tagName === "DIV" && cr.width >= 80 && cr.height >= 80) break;
-    container = container.parentElement;
+function getShadowRoot() {
+  if (!shadowRootNode) {
+    const host = document.createElement("div");
+    host.style.position = "absolute";
+    host.style.top = "0";
+    host.style.left = "0";
+    host.style.width = "100%";
+    host.style.height = "100%";
+    host.style.pointerEvents = "none";
+    // Lower z-index so it stays behind sticky prompt inputs (which usually have z-index > 1000)
+    host.style.zIndex = "999"; 
+    
+    shadowRootNode = host.attachShadow({ mode: "closed" });
+    
+    const styleEl = document.createElement("style");
+    styleEl.textContent = UI_STYLES;
+    shadowRootNode.appendChild(styleEl);
+
+    document.documentElement.appendChild(host);
   }
-  if (!container || container === document.body) {
-    container = mediaEl.parentElement; // fallback to immediate parent
+  return shadowRootNode;
+}
+
+function getOverlay() {
+  if (!overlayContainer) {
+    const shadow = getShadowRoot();
+    overlayContainer = document.createElement("div");
+    shadow.appendChild(overlayContainer);
   }
-  if (container) {
-    container.classList.add("fb-media-container");
-    container.appendChild(btn);
+  return overlayContainer;
+}
 
-    // Responsive size class based on container width
-    function updateBtnSize() {
-      const w = container.getBoundingClientRect().width;
-      btn.classList.remove("fb-btn-sm", "fb-btn-lg");
-      if (w < 200) {
-        btn.classList.add("fb-btn-sm");
-      } else if (w > 400) {
-        btn.classList.add("fb-btn-lg");
+function isUnfinishedMedia(el) {
+  try {
+    const style = window.getComputedStyle(el);
+    if (style.opacity === '0' || style.visibility === 'hidden' || style.display === 'none') return true;
+    if (style.filter && style.filter.includes('blur')) return true; // often used for placeholders
+  } catch (e) {}
+
+  if (el.tagName.toLowerCase() === 'img') {
+     // A 1x1 or very small natural image stretched over a large container is typically a skeleton/placeholder
+     if (el.naturalWidth > 0 && (el.naturalWidth < 100 || el.naturalHeight < 100)) return true;
+     
+     // Data URIs or SVGs used as placeholders
+     const src = el.src || "";
+     if (src.startsWith('data:image/') && src.length < 50000) return true; // Very small data URI is likely a placeholder
+     if (src.includes('placeholder')) return true;
+  }
+
+  let current = el;
+  // Increase depth to search for progress indicators
+  for (let i = 0; i < 6; i++) {
+    if (!current) break;
+    
+    if (current.getAttribute('aria-busy') === 'true') return true;
+    if (current.getAttribute('role') === 'progressbar') return true;
+    if (current.hasAttribute('disabled')) return true;
+    
+    // Look for SVG spinners in the parent container
+    if (current.parentElement) {
+      const svgs = current.parentElement.querySelectorAll('svg');
+      for (const svg of svgs) {
+         if (svg.querySelector('animateTransform') || svg.querySelector('circle[stroke-dasharray]')) return true;
+         const svgClass = (typeof svg.className === 'string' ? svg.className : (svg.className?.baseVal || '')).toLowerCase();
+         if (svgClass.includes('spinner') || svgClass.includes('progress') || svgClass.includes('loading')) return true;
       }
-      // else: default medium (no extra class)
     }
-    updateBtnSize();
+    
+    const className = (typeof current.className === 'string' ? current.className : '').toLowerCase();
+    if (
+      className.includes('loading') || 
+      className.includes('generating') || 
+      className.includes('spinner') || 
+      className.includes('progress') ||
+      className.includes('skeleton') ||
+      className.includes('shimmer') ||
+      className.includes('placeholder') ||
+      className.includes('pending')
+    ) {
+      return true;
+    }
+    
+    const tagName = current.tagName.toLowerCase();
+    if (tagName.includes('progress') || tagName.includes('spinner')) {
+      return true;
+    }
+    
+    // Kiểm tra text "Generating" hoặc "Đang tạo" trong container nhỏ gần đó
+    if (current.parentElement) {
+       const textContent = current.parentElement.textContent.toLowerCase();
+       if (textContent.length < 100 && (textContent.includes('generating') || textContent.includes('đang tạo') || textContent.includes('creating'))) {
+          return true;
+       }
+    }
+    
+    current = current.parentElement;
+  }
+  return false;
+}
 
-    // Re-check on resize (user changes grid size)
-    if (typeof ResizeObserver !== "undefined") {
-      const ro = new ResizeObserver(updateBtnSize);
-      ro.observe(container);
+// We no longer scan all media on an interval.
+// Instead, we use event delegation to detect when the user hovers over an image/video.
+
+/** Race a promise against a timeout. Rejects with 'timeout' if exceeded. */
+function withTimeout(promise, ms, label = '') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Timeout(${ms}ms)${label ? ': ' + label : ''}`)), ms)
+    )
+  ]);
+}
+
+async function handleCaptureClick(e) {
+  e.stopPropagation();
+  if (!activeBtn || !activeMedia) return;
+  
+  const mediaEl = activeMedia;
+  const type = mediaEl.tagName.toLowerCase() === 'video' ? 'video' : 'image';
+  const originalHtml = activeBtn.innerHTML;
+
+  // Show spinner
+  activeBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" opacity="0.3"/><path d="M12 2v4" stroke-width="3"/></svg>`;
+
+  // Safety net: always restore button after 15s regardless
+  const safetyTimer = setTimeout(() => {
+    if (activeBtn) {
+      activeBtn.classList.remove('done');
+      activeBtn.innerHTML = originalHtml;
     }
+  }, 15000);
+
+  const restoreBtn = () => {
+    clearTimeout(safetyTimer);
+    if (activeBtn) {
+      activeBtn.classList.remove('done');
+      activeBtn.innerHTML = originalHtml;
+    }
+  };
+
+  try {
+    // 1. Capture media with a 10s timeout
+    let dataUrl;
+    if (type === "video") {
+      dataUrl = captureVideoFrame(mediaEl);
+    } else {
+      dataUrl = await withTimeout(captureImage(mediaEl), 10000, 'captureImage');
+    }
+
+    // 2. Copy to clipboard with a 3s timeout (non-blocking — failure is OK)
+    try {
+      const res = await withTimeout(fetch(dataUrl), 3000, 'fetch-dataUrl');
+      const blob = await res.blob();
+      const pngBlob = new Blob([await blob.arrayBuffer()], { type: "image/png" });
+      await withTimeout(
+        navigator.clipboard.write([new ClipboardItem({ "image/png": pngBlob })]),
+        3000, 'clipboard.write'
+      );
+    } catch (clipErr) {
+      // Clipboard failure is non-critical — continue to send
+      console.warn("[FB Flow] Clipboard copy skipped:", clipErr.message);
+    }
+
+    // 3. Forward to Gemini with a 12s timeout
+    try {
+      const res = await withTimeout(
+        safeSendMessage({
+          action: "FORWARD_TO_GEMINI",
+          payload: {
+            mediaDataUrl: dataUrl,
+            mediaType: type,
+            analysisPrompt: "Phân tích chi tiết: composition, lighting, color, và đề xuất cải thiện."
+          }
+        }),
+        12000, 'FORWARD_TO_GEMINI'
+      );
+
+      clearTimeout(safetyTimer);
+
+      if (res?.success) {
+        if (activeBtn) {
+          activeBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>`;
+          activeBtn.classList.add("done");
+        }
+        showToast("📤 Media sent! Press Ctrl+V in Gemini to paste.", 5000);
+        setTimeout(restoreBtn, 3000);
+      } else {
+        restoreBtn();
+        showToast("⚠️ Could not reach Gemini tab. Is it open?", 4000);
+      }
+    } catch (sendErr) {
+      restoreBtn();
+      console.warn("[FB Flow] Send to Gemini error:", sendErr.message);
+      if (!reloadBannerShown) {
+        showToast("⚠️ Extension error. Reload trang (F5) để tiếp tục.", 5000);
+      }
+    }
+  } catch (err) {
+    restoreBtn();
+    console.warn("[FB Flow] Capture error:", err.message);
+    showToast("❌ Media capture failed. Try another image.", 3000);
   }
 }
+
+
+
+function getSharedButton() {
+  if (!activeBtn) {
+    const overlay = getOverlay();
+    activeBtn = document.createElement("button");
+    activeBtn.className = "sys-act-btn";
+    activeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L9.5 9.5L2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2z" fill="currentColor"/><path d="M17 3l3 3M4 18l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+    
+    activeBtn.addEventListener("click", handleCaptureClick);
+    
+    // Keep button visible while hovering over it
+    activeBtn.addEventListener("mouseenter", () => {
+      activeBtn.classList.add("hovered");
+    });
+    activeBtn.addEventListener("mouseleave", () => {
+      activeBtn.classList.remove("hovered");
+      activeMedia = null;
+    });
+
+    overlay.appendChild(activeBtn);
+  }
+  return activeBtn;
+}
+
+function updateActiveButtonPosition() {
+  if (!activeMedia || !activeBtn) return;
+  if (!document.documentElement.contains(activeMedia)) {
+    activeBtn.classList.remove("hovered");
+    activeMedia = null;
+    return;
+  }
+  
+  const rect = activeMedia.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) {
+    activeBtn.classList.remove("hovered");
+    activeMedia = null;
+    return;
+  }
+
+  const top = rect.top + window.scrollY;
+  const left = rect.left + window.scrollX;
+  
+  let offset = 8;
+  activeBtn.classList.remove("sys-btn-sm", "sys-btn-lg");
+  if (rect.width < 200) {
+    activeBtn.classList.add("sys-btn-sm");
+    offset = 4;
+  } else if (rect.width > 400) {
+    activeBtn.classList.add("sys-btn-lg");
+    offset = 12;
+  }
+  
+  activeBtn.style.top = `${top + offset}px`;
+  activeBtn.style.left = `${left + offset}px`;
+}
+
+// Event delegation for hover detection
+document.addEventListener("mouseover", (e) => {
+  const target = e.target;
+  if (!target) return;
+  
+  // Bỏ qua nếu đang hover vào vùng chứa thanh prompt input
+  const promptInput = document.querySelector('div[contenteditable="true"]');
+  if (promptInput) {
+    const promptContainer = promptInput.closest('form, [class*="bottom"], [class*="footer"], [role="region"], [class*="prompt"]') || promptInput.parentElement;
+    if (promptContainer && promptContainer.contains(target)) {
+      if (activeMedia && activeBtn) {
+         activeBtn.classList.remove("hovered");
+         activeMedia = null;
+      }
+      return;
+    }
+  }
+
+  const tagName = target.tagName?.toLowerCase();
+  if (tagName === 'img' || tagName === 'video') {
+    const rect = target.getBoundingClientRect();
+    if (rect.width < 80 || rect.height < 80) return;
+    
+    // Bỏ qua ảnh làm background (quá lớn)
+    if (rect.width > window.innerWidth * 0.8 && rect.height > window.innerHeight * 0.8) return;
+    
+    if (tagName === 'img' && (!target.complete || target.naturalWidth === 0)) return;
+    if (tagName === 'video' && target.readyState === 0) return;
+    
+    const src = target.src || "";
+    if (src.includes("favicon") || src.includes("icon") || src.includes("logo") || src.includes("avatar")) return;
+    
+    if (isUnfinishedMedia(target)) return;
+    
+    // Valid media hovered
+    activeMedia = target;
+    const btn = getSharedButton();
+    btn.classList.add("hovered");
+    updateActiveButtonPosition();
+  } else {
+    // If hovering outside media
+    if (activeMedia && activeBtn) {
+       // Check if mouse is interacting with our shadow DOM
+       if (shadowRootNode && target === shadowRootNode.host) {
+          // Handled by button's own mouseenter/mouseleave
+       } else {
+          activeBtn.classList.remove("hovered");
+          activeMedia = null;
+       }
+    }
+  }
+}, { passive: true });
+
+window.addEventListener('scroll', updateActiveButtonPosition, { passive: true });
+window.addEventListener('resize', updateActiveButtonPosition, { passive: true });
 
 async function captureImage(img) {
-  // Try canvas first
   try {
     const c = document.createElement("canvas");
     c.width = img.naturalWidth || img.width;
@@ -517,7 +796,6 @@ async function captureImage(img) {
     c.getContext("2d").drawImage(img, 0, 0);
     return c.toDataURL("image/png");
   } catch (_) {
-    // CORS: fetch the source directly
     const res = await fetch(img.src);
     const blob = await res.blob();
     return new Promise((ok, fail) => {
@@ -537,25 +815,12 @@ function captureVideoFrame(vid) {
   return c.toDataURL("image/png");
 }
 
-// ── Observer ───────────────────────────────────────────────────
-let tid;
-const obs = new MutationObserver(() => {
-  clearTimeout(tid);
-  // Fast reaction to DOM changes
-  tid = setTimeout(scanMedia, 800);
-});
-
 function init() {
-  console.log("[FB Flow] v3 loaded.");
-  injectStyles();
-  scanMedia();
-  
-  // 1. Observe DOM changes for instant reactions when navigating
-  obs.observe(document.body, { childList: true, subtree: true });
-  
-  // 2. Relaxed fallback poller (3s) to catch late-rendered metadata 
-  // without heavily taxing the CPU.
-  setInterval(scanMedia, 3000);
+  if (!isContextValid()) {
+    console.warn('[FB Flow] Extension context already invalid at init. Aborting.');
+    return;
+  }
+  // Initialization complete. Everything is event-driven now.
 }
 
 if (document.readyState === "loading") {
@@ -563,3 +828,4 @@ if (document.readyState === "loading") {
 } else {
   init();
 }
+

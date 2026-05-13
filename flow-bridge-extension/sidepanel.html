@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="popup.css">
+  <link rel="stylesheet" href="sidepanel.css">
 </head>
 <body>
 
@@ -72,12 +72,7 @@
 
   <div class="section" id="activeProjectSection" style="display: none;">
     <div class="section-label">Active Project</div>
-    <div id="activeProjectInfo" style="margin-bottom: 8px; font-weight: 500; font-size: 14px; color: var(--text);"></div>
-    <div id="projectCreditBar" style="display:flex; align-items:center; gap:8px; margin-bottom: 12px;">
-      <span style="font-size:12px; color:var(--subtle);">Credits used:</span>
-      <span id="projectCreditText" style="font-weight:700; font-size:13px; color:var(--primary);">0</span>
-      <button id="resetCreditBtn" title="Reset credit counter for this project" style="margin-left:auto; padding:2px 10px; font-size:11px; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--subtle); cursor:pointer;">Reset</button>
-    </div>
+    <div id="activeProjectInfo" style="margin-bottom: 12px; font-weight: 500; font-size: 14px; color: var(--text);"></div>
     <div class="form-actions">
       <button class="btn-primary" id="updateLinksBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -132,26 +127,6 @@
     <div class="project-list" id="projectList"></div>
   </div>
 
-  <div class="section" style="border-top: 1px solid var(--border); padding-top: 10px;">
-    <a href="#" id="openEstimatorBtn" class="estimator-link" title="Open Credit Estimator in Side Panel">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="4" y="2" width="16" height="20" rx="2"/>
-        <line x1="8" y1="6" x2="16" y2="6"/>
-        <line x1="8" y1="10" x2="10" y2="10"/>
-        <line x1="14" y1="10" x2="16" y2="10"/>
-        <line x1="8" y1="14" x2="10" y2="14"/>
-        <line x1="14" y1="14" x2="16" y2="14"/>
-        <line x1="8" y1="18" x2="16" y2="18"/>
-      </svg>
-      Credit Estimator
-      <svg class="arrow-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-        <polyline points="15 3 21 3 21 9"/>
-        <line x1="10" y1="14" x2="21" y2="3"/>
-      </svg>
-    </a>
-  </div>
-
-  <script src="popup.js"></script>
+  <script src="sidepanel.js"></script>
 </body>
 </html>

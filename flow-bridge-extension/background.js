@@ -1,11 +1,12 @@
 /**
- * background.js — PromptAgent Flow Bridge v3.1
- * Service Worker: Split View, Message Relay
+ * background.js — PromptAgent Flow Bridge v3.5
+ * Service Worker: Split View orchestrator, Message Relay
  *
- * FIX: Split View — 3 root causes resolved:
- *   1. Popup closes on focus loss → use fire-and-forget pattern
- *   2. Sequential await blocks service worker → use Promise.all
- *   3. Screen dimensions wrong → use chrome.system.display API
+ * Core responsibilities:
+ *   - OPEN_SPLIT_VIEW: creates Gemini + Flow side-by-side windows
+ *   - FORWARD_TO_FLOW / FORWARD_TO_GEMINI: relay messages between tabs
+ *   - INJECT_MAIN_SCRIPT: on-demand MAIN world injection for Flow
+ *   - Tab lifecycle: track active pairs, clean up on tab close
  */
 
 let activePairs = [];
@@ -20,6 +21,7 @@ function saveActivePairs() {
   chrome.storage.local.set({ activePairs });
 }
 
+// ── Tab Lifecycle ────────────────────────────────
 chrome.tabs.onRemoved.addListener((tabId) => {
   const index = activePairs.findIndex(p => p.gemTabId === tabId || p.flowTabId === tabId);
   if (index !== -1) {
@@ -29,14 +31,48 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 });
 
+// ── Message Router ────────────────────────────────
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+
+  // ── Split View Launch ──
   if (request.action === "OPEN_SPLIT_VIEW") {
-    // Fire-and-forget: respond IMMEDIATELY before popup closes
     sendResponse({ success: true });
-    // Then do the work asynchronously
     openSplitView(request.gemUrl, request.flowUrl, request.projectId);
-    return false; // sync response already sent
+    return false;
   }
+
+  // ── Credit Tracking ──
+  if (request.action === "RECORD_USAGE") {
+    const cost = parseInt(request.cost, 10) || 0;
+    const senderTabId = sender?.tab?.id;
+
+    if (cost <= 0) {
+      sendResponse({ success: true });
+      return false;
+    }
+
+    // Always read fresh from storage to avoid SW race condition
+    chrome.storage.local.get(['activePairs', 'credits_by_project'], (res) => {
+      const pairs = res.activePairs || activePairs;
+      // Sync in-memory cache if it was empty
+      if (activePairs.length === 0 && pairs.length > 0) activePairs = pairs;
+
+      const pair = senderTabId
+        ? pairs.find(p => p.gemTabId === senderTabId || p.flowTabId === senderTabId)
+        : null;
+      const projectId = pair?.projectId || "__global__";
+
+      const map = res.credits_by_project || {};
+      map[projectId] = (map[projectId] || 0) + cost;
+      chrome.storage.local.set({ credits_by_project: map }, () => {
+        console.log(`[FB BG] ✅ RECORD_USAGE: +${cost} → project "${projectId}" (tab ${senderTabId})`);
+        sendResponse({ success: true });
+      });
+    });
+
+    return true; // async
+  }
+
 
   if (request.action === "GET_ACTIVE_PAIRS") {
     sendResponse({ activePairs });
@@ -45,99 +81,129 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === "FOCUS_TABS") {
     const { gemTabId, flowTabId } = request;
-    chrome.tabs.get(gemTabId, (gemTab) => {
-      if (!chrome.runtime.lastError && gemTab) {
-        chrome.windows.update(gemTab.windowId, { focused: true }, () => {
-          chrome.tabs.update(gemTabId, { active: true });
-          chrome.tabs.get(flowTabId, (flowTab) => {
-            if (!chrome.runtime.lastError && flowTab) {
-              chrome.windows.update(flowTab.windowId, { focused: true }, () => {
-                chrome.tabs.update(flowTabId, { active: true });
-              });
-            }
-          });
-        });
-      }
-    });
     sendResponse({ success: true });
+    restoreSplitLayout(gemTabId, flowTabId);
     return false;
   }
 
-  if (request.action === "FORWARD_TO_FLOW") {
-    const senderTabId = sender?.tab?.id;
-    const pair = activePairs.find(p => p.gemTabId === senderTabId);
-    if (pair) {
-      console.log("[FB BG] → Flow (Paired):", request.payload?.prompt?.substring(0, 50));
-      chrome.tabs.sendMessage(pair.flowTabId, { action: "EXECUTE_PROMPT", payload: request.payload }, sendResponse);
-      return true;
+  if (request.action === "INJECT_MAIN_SCRIPT") {
+    const tabId = request.tabId || sender?.tab?.id;
+    if (!tabId) {
+      sendResponse({ success: false, error: "No tabId" });
+      return false;
     }
-    console.log("[FB BG] → Flow (Fallback):", request.payload?.prompt?.substring(0, 50));
-    forwardToTab("*://labs.google/fx/tools/flow/*", "EXECUTE_PROMPT", request.payload, sendResponse);
+    chrome.scripting.executeScript({
+      target: { tabId },
+      files: ["content_flow_main.js"],
+      world: "MAIN"
+    }).then(() => {
+      console.log("[FB BG] ✅ MAIN world script injected on-demand for tab:", tabId);
+      sendResponse({ success: true });
+    }).catch(err => {
+      console.error("[FB BG] MAIN script injection failed:", err);
+      sendResponse({ success: false, error: err.message });
+    });
+    return true; // async
+  }
+
+  if (request.action === "FORWARD_TO_FLOW") {
+    // Always read fresh from storage to avoid SW race condition
+    chrome.storage.local.get(['activePairs'], (result) => {
+      const pairs = result.activePairs || activePairs;
+      const senderTabId = sender?.tab?.id;
+      const pair = pairs.find(p => p.gemTabId === senderTabId);
+      if (pair) {
+        console.log("[FB BG] → Flow (Paired):", request.payload?.prompt?.substring(0, 50));
+        chrome.tabs.sendMessage(pair.flowTabId, { action: "EXECUTE_PROMPT", payload: request.payload }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[FB BG] Send error (Paired Flow):", chrome.runtime.lastError.message);
+            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+          } else {
+            sendResponse(res);
+          }
+        });
+      } else {
+        console.log("[FB BG] → Flow (Fallback):", request.payload?.prompt?.substring(0, 50));
+        forwardToTab("*://labs.google/fx/tools/flow/*", "EXECUTE_PROMPT", request.payload, sendResponse);
+      }
+    });
     return true; // async
   }
 
   if (request.action === "FORWARD_TO_GEMINI") {
-    const senderTabId = sender?.tab?.id;
-    const pair = activePairs.find(p => p.flowTabId === senderTabId);
-    if (pair) {
-      console.log("[FB BG] → Gemini (Paired):", request.payload?.mediaType);
-      chrome.tabs.sendMessage(pair.gemTabId, { action: "EXECUTE_ANALYSIS", payload: request.payload }, sendResponse);
-      return true;
-    }
-    console.log("[FB BG] → Gemini (Fallback):", request.payload?.mediaType);
-    forwardToTab("*://gemini.google.com/*", "EXECUTE_ANALYSIS", request.payload, sendResponse);
+    // Always read fresh from storage to avoid SW race condition
+    chrome.storage.local.get(['activePairs'], (result) => {
+      const pairs = result.activePairs || activePairs;
+      const senderTabId = sender?.tab?.id;
+      const pair = pairs.find(p => p.flowTabId === senderTabId);
+      if (pair) {
+        console.log("[FB BG] → Gemini (Paired) tabId:", pair.gemTabId, "type:", request.payload?.mediaType);
+        chrome.tabs.sendMessage(pair.gemTabId, { action: "EXECUTE_ANALYSIS", payload: request.payload }, (res) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[FB BG] Send error (Paired Gemini):", chrome.runtime.lastError.message);
+            // Paired tab failed — try fallback
+            forwardToTab("*://gemini.google.com/*", "EXECUTE_ANALYSIS", request.payload, sendResponse);
+          } else {
+            sendResponse(res);
+          }
+        });
+      } else {
+        console.log("[FB BG] → Gemini (Fallback) — no pair for flowTabId:", senderTabId);
+        forwardToTab("*://gemini.google.com/*", "EXECUTE_ANALYSIS", request.payload, sendResponse);
+      }
+    });
     return true; // async
   }
+
 });
 
 /**
  * Forward a message to the first tab matching a URL pattern.
- * Uses chrome.tabs.query first, then falls back to manual URL matching.
+ * Uses chrome.tabs.query with a URL pattern for reliable detection
+ * (requires host_permissions; avoids the need to filter t.url manually).
  */
 function forwardToTab(urlPattern, action, payload, sendResponse) {
-  // Extract a simple string for manual URL matching
-  // e.g., "*://labs.google/fx/tools/flow/*" → "labs.google/fx/tools/flow"
-  const urlFragment = urlPattern.replace(/^\*:\/\//, "").replace(/\/?\*$/, "");
-  console.log("[FB BG] Looking for tab matching:", urlFragment);
+  // Match both https and http in a single query
+  const queryPatterns = [
+    urlPattern.replace(/^\*:\/\//, "https://"),
+    urlPattern.replace(/^\*:\/\//, "http://")
+  ];
 
-  chrome.tabs.query({}, (allTabs) => {
-    // First try: exact URL pattern match
-    let tab = allTabs.find(t => {
-      try {
-        return t.url && t.url.includes(urlFragment);
-      } catch (_) { return false; }
-    });
+  console.log("[FB BG] forwardToTab querying:", queryPatterns);
 
-    if (!tab) {
-      console.warn("[FB BG] No tab found for:", urlFragment, "| Total tabs:", allTabs.length);
+  chrome.tabs.query({ url: queryPatterns }, (tabs) => {
+    if (!tabs || tabs.length === 0) {
+      console.warn("[FB BG] No tab found for:", queryPatterns);
       sendResponse({ success: false, error: "No matching tab found" });
       return;
     }
-
-    console.log("[FB BG] Found tab:", tab.id, tab.url?.substring(0, 60));
-    chrome.windows.update(tab.windowId, { focused: true });
-    chrome.tabs.update(tab.id, { active: true });
-
-    setTimeout(() => {
-      chrome.tabs.sendMessage(tab.id, { action, payload }, (res) => {
-        if (chrome.runtime.lastError) {
-          console.warn("[FB BG] Send error:", chrome.runtime.lastError.message);
-          sendResponse({ success: false, error: chrome.runtime.lastError.message });
-        } else {
-          console.log("[FB BG] ✅ Message delivered:", action);
-          sendResponse({ success: true, ...res });
-        }
-      });
-    }, 300);
+    sendToFoundTab(tabs[0], action, payload, sendResponse);
   });
 }
 
-/**
- * Get screen dimensions reliably.
- * Strategy: chrome.system.display → fallback to last focused window → hardcoded defaults.
- */
+function sendToFoundTab(tab, action, payload, sendResponse) {
+  console.log("[FB BG] Found tab:", tab.id, tab.url?.substring(0, 80));
+  chrome.windows.update(tab.windowId, { focused: true });
+  chrome.tabs.update(tab.id, { active: true });
+
+  // Brief delay to let the tab receive focus before sending message
+  setTimeout(() => {
+    chrome.tabs.sendMessage(tab.id, { action, payload }, (res) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[FB BG] sendToFoundTab error:", chrome.runtime.lastError.message);
+        sendResponse({ success: false, error: chrome.runtime.lastError.message });
+      } else {
+        console.log("[FB BG] ✅ Message delivered:", action);
+        sendResponse({ success: true, ...res });
+      }
+    });
+  }, 300);
+}
+
+
+
+// ── Split View: 2 side-by-side windows ────────────
 async function getScreenBounds() {
-  // Strategy 1: system.display API (requires permission)
   try {
     const displays = await chrome.system.display.getInfo();
     if (displays && displays.length > 0) {
@@ -150,11 +216,9 @@ async function getScreenBounds() {
     console.warn("[FB BG] system.display unavailable:", e.message);
   }
 
-  // Strategy 2: Find the largest existing window as a reference
   try {
     const allWins = await chrome.windows.getAll({ windowTypes: ["normal"] });
     if (allWins.length > 0) {
-      // Pick the largest window (likely maximized)
       const biggest = allWins.reduce((a, b) =>
         (a.width * a.height) > (b.width * b.height) ? a : b
       );
@@ -170,15 +234,67 @@ async function getScreenBounds() {
     }
   } catch (_) {}
 
-  // Strategy 3: Hardcoded defaults
   console.log("[FB BG] Using default screen size 1920x1080");
   return { left: 0, top: 0, width: 1920, height: 1080 };
 }
 
 /**
- * Open side-by-side Split View.
- * Uses Promise.all to create both windows concurrently.
+ * Restore split-view layout for existing tabs without reopening them.
+ * Repositions Gem window to left half, Flow window to right half.
  */
+async function restoreSplitLayout(gemTabId, flowTabId) {
+  try {
+    const screen = await getScreenBounds();
+    const halfW = Math.floor(screen.width / 2);
+
+    const [gemTab, flowTab] = await Promise.all([
+      chrome.tabs.get(gemTabId).catch(() => null),
+      chrome.tabs.get(flowTabId).catch(() => null)
+    ]);
+
+    if (!gemTab || !flowTab) {
+      console.warn("[FB BG] restoreSplitLayout: one or both tabs missing.");
+      return;
+    }
+
+    // Activate both tabs in their respective windows
+    await Promise.all([
+      chrome.tabs.update(gemTabId, { active: true }).catch(() => {}),
+      chrome.tabs.update(flowTabId, { active: true }).catch(() => {})
+    ]);
+
+    // Reposition windows side-by-side
+    await Promise.all([
+      chrome.windows.update(gemTab.windowId, {
+        left: screen.left,
+        top: screen.top,
+        width: halfW,
+        height: screen.height,
+        state: "normal"
+      }).catch(() => {}),
+      chrome.windows.update(flowTab.windowId, {
+        left: screen.left + halfW,
+        top: screen.top,
+        width: halfW,
+        height: screen.height,
+        state: "normal"
+      }).catch(() => {})
+    ]);
+
+    // Focus Flow last so it's on top (Gemini is passive viewer)
+    setTimeout(() => {
+      chrome.windows.update(gemTab.windowId, { focused: true }).catch(() => {});
+      setTimeout(() => {
+        chrome.windows.update(flowTab.windowId, { focused: true }).catch(() => {});
+      }, 150);
+    }, 300);
+
+    console.log("[FB BG] ✅ Split layout restored:", gemTabId, "<->", flowTabId);
+  } catch (err) {
+    console.error("[FB BG] restoreSplitLayout error:", err);
+  }
+}
+
 async function openSplitView(gemUrl, flowUrl, projectId) {
   try {
     const screen = await getScreenBounds();
@@ -191,8 +307,6 @@ async function openSplitView(gemUrl, flowUrl, projectId) {
       flowUrl: flowUrl.substring(0, 50)
     });
 
-    // Create BOTH windows concurrently with Promise.all
-    // This prevents the service worker from stalling between creates
     const [gemWin, flowWin] = await Promise.all([
       chrome.windows.create({
         url: gemUrl,
@@ -220,13 +334,13 @@ async function openSplitView(gemUrl, flowUrl, projectId) {
     const flowTabId = flowWin.tabs && flowWin.tabs.length > 0 ? flowWin.tabs[0].id : null;
     
     if (gemTabId && flowTabId) {
+      activePairs = activePairs.filter(p => p.projectId !== projectId);
+      
       activePairs.push({ gemTabId, flowTabId, projectId });
       saveActivePairs();
       console.log("[FB BG] Registered active pair:", gemTabId, flowTabId, projectId);
     }
 
-    // Bring Gemini window to front briefly then switch to Flow
-    // This ensures both windows are visible and not stacked
     setTimeout(() => {
       chrome.windows.update(gemWin.id, { focused: true }, () => {
         setTimeout(() => {
@@ -237,7 +351,6 @@ async function openSplitView(gemUrl, flowUrl, projectId) {
 
   } catch (err) {
     console.error("[FB BG] Split View error:", err);
-    // Fallback: open as tabs in the current window
     try {
       chrome.tabs.create({ url: gemUrl });
       chrome.tabs.create({ url: flowUrl, active: true });

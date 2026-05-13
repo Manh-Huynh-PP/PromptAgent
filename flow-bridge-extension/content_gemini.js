@@ -1,7 +1,10 @@
 /**
- * content_gemini.js — PromptAgent Flow Bridge v3.2
+ * content_gemini.js — PromptAgent Flow Bridge v3.5
  * Injected on: gemini.google.com
  *
+ * FIX v3.5:
+ *   - Guard all chrome.runtime calls against "Extension context invalidated"
+ *   - Show reload banner when extension context is lost
  * FIX v3.2:
  *   - extractBridgeJSON uses balanced-brace counting instead of broken regex
  *   - scan() pierces shadow DOM of code-block web components
@@ -10,20 +13,139 @@
 
 const MARKER = "flow_bridge_prompt";
 const TAGGED = "data-fb-tagged";
+
+// ── Context Guard ──────────────────────────────────────────────
+/**
+ * Check if the extension context (chrome.runtime) is still valid.
+ * Returns false when the extension has been reloaded/updated/disabled
+ * while this content script is still alive on the page.
+ */
+function isContextValid() {
+  try {
+    return !!chrome.runtime?.id;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
+ * Safe wrapper around chrome.runtime.sendMessage.
+ * Retries up to 2 times (1.5s apart) before showing the reload banner.
+ * This handles temporary SW restarts without forcing a page reload.
+ * @returns {Promise<any>}
+ */
+function safeSendMessage(message, _retries = 2) {
+  return new Promise((resolve, reject) => {
+    if (!isContextValid()) {
+      if (_retries > 0) {
+        // Context may recover after SW restarts — wait and retry
+        console.log(`[FB Gem] Context invalid, retrying in 1.5s (${_retries} left)...`);
+        setTimeout(() => {
+          safeSendMessage(message, _retries - 1).then(resolve).catch(reject);
+        }, 1500);
+        return;
+      }
+      // Truly dead — show banner
+      showReloadBanner();
+      reject(new Error("Extension context invalidated"));
+      return;
+    }
+
+    try {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          const msg = chrome.runtime.lastError.message || "Unknown runtime error";
+          const isInvalidated = msg.includes("invalidated") || msg.includes("Extension context");
+
+          if (isInvalidated && _retries > 0) {
+            console.log(`[FB Gem] Runtime error, retrying in 1.5s (${_retries} left): ${msg}`);
+            setTimeout(() => {
+              safeSendMessage(message, _retries - 1).then(resolve).catch(reject);
+            }, 1500);
+            return;
+          }
+
+          if (isInvalidated) showReloadBanner();
+          reject(new Error(msg));
+        } else {
+          resolve(response);
+        }
+      });
+    } catch (err) {
+      if (_retries > 0) {
+        console.log(`[FB Gem] Caught runtime error, retrying (${_retries} left):`, err.message);
+        setTimeout(() => {
+          safeSendMessage(message, _retries - 1).then(resolve).catch(reject);
+        }, 1500);
+        return;
+      }
+      showReloadBanner();
+      reject(err);
+    }
+  });
+}
+
+
+
+/**
+ * Show a persistent banner telling the user to reload the page.
+ * Only shown once — subsequent calls are no-ops.
+ */
+let reloadBannerShown = false;
+function showReloadBanner() {
+  if (reloadBannerShown) return;
+  reloadBannerShown = true;
+
+  // Stop observers to prevent further errors
+  try { obs?.disconnect(); } catch (_) {}
+  try { clearInterval(rescanInterval); } catch (_) {}
+
+  const banner = document.createElement('div');
+  banner.id = 'fb-reload-banner';
+  banner.innerHTML = `
+    <span>⚠️ PromptAgent extension đã được cập nhật. Vui lòng <strong>reload trang này</strong> (F5) để tiếp tục sử dụng.</span>
+    <button onclick="location.reload()" style="
+      margin-left: 12px; padding: 6px 16px; background: #fff; color: #1a1a1a;
+      border: none; border-radius: 20px; font-weight: 600; cursor: pointer;
+      font-size: 13px;
+    ">↻ Reload</button>
+  `;
+  Object.assign(banner.style, {
+    position: 'fixed', top: '0', left: '0', right: '0', zIndex: '999999',
+    padding: '12px 20px', background: '#ff6b35', color: '#fff',
+    fontFamily: "'Google Sans', Inter, sans-serif", fontSize: '14px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+    animation: 'fbSlideDown 0.3s ease-out'
+  });
+
+  // Add animation keyframe
+  const style = document.createElement('style');
+  style.textContent = `@keyframes fbSlideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }`;
+  document.head.appendChild(style);
+  document.body.appendChild(banner);
+
+  console.warn('[FB Gem] Extension context invalidated — reload banner shown.');
+}
 let autoSubmitEnabled = false;
 
-// Load persisted auto-submit preference
-chrome.storage.sync.get(['autoSubmit'], (result) => {
-  autoSubmitEnabled = !!result.autoSubmit;
-});
+// Load persisted auto-submit preference (guarded)
+try {
+  chrome.storage.sync.get(['autoSubmit'], (result) => {
+    if (chrome.runtime.lastError) return;
+    autoSubmitEnabled = !!result.autoSubmit;
+  });
+} catch (_) { /* context already invalid at load time — rare but possible */ }
 
-// Listen for changes from popup toggle in real-time
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.autoSubmit) {
-    autoSubmitEnabled = !!changes.autoSubmit.newValue;
-    console.log('[FB Gem] Auto-submit toggled:', autoSubmitEnabled);
-  }
-});
+// Listen for changes from popup toggle in real-time (guarded)
+try {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.autoSubmit) {
+      autoSubmitEnabled = !!changes.autoSubmit.newValue;
+      console.log('[FB Gem] Auto-submit toggled:', autoSubmitEnabled);
+    }
+  });
+} catch (_) {}
 
 // ── Styles ─────────────────────────────────────────────────────
 function injectStyles() {
@@ -320,29 +442,31 @@ function injectFlowButton(el, payload, index = 1, total = 1) {
   const label = total > 1 ? `Send to Flow (${index}/${total})` : `Send to Flow`;
   btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> ${label}`;
 
-  btn.addEventListener("click", () => {
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Sent!`;
+  btn.addEventListener("click", async () => {
+    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Sending...`;
     btn.classList.add("sent");
 
-    chrome.runtime.sendMessage({
-      action: "FORWARD_TO_FLOW",
-      payload: { ...normalizedPayload, autoSubmit: autoSubmitEnabled }
-    }, (res) => {
-      if (chrome.runtime.lastError) {
-        console.warn("[FB Gem] Send error:", chrome.runtime.lastError.message);
-        showToast("⚠️ Extension error. Reload extension.", 5000);
-        resetBtn();
-        return;
-      }
+    try {
+      const res = await safeSendMessage({
+        action: "FORWARD_TO_FLOW",
+        payload: { ...normalizedPayload, autoSubmit: autoSubmitEnabled }
+      });
+
       if (res?.success) {
+        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg> Sent!`;
         showToast("✅ Prompt sent to Flow!");
-        // Reset after 3s so user can re-send if needed
         setTimeout(resetBtn, 3000);
       } else {
         showToast("⚠️ Flow tab not found. Launch project first.", 5000);
         resetBtn();
       }
-    });
+    } catch (err) {
+      console.warn("[FB Gem] Send error:", err.message);
+      if (!reloadBannerShown) {
+        showToast("⚠️ Extension error. Reload trang (F5) để tiếp tục.", 5000);
+      }
+      resetBtn();
+    }
 
     function resetBtn() {
       btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> ${label}`;
@@ -389,15 +513,19 @@ function findGeminiInput() {
   return null;
 }
 
-// ── Receive Media from Flow ────────────────────────────────────
-chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
-  if (req.action === "EXECUTE_ANALYSIS") {
-    console.log("[FB Gem] EXECUTE_ANALYSIS:", req.payload?.mediaType);
-    handleAnalysis(req.payload);
-    sendResponse({ success: true });
-    return true;
-  }
-});
+// ── Receive Media from Flow (guarded) ──────────────────────────
+try {
+  chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
+    if (req.action === "EXECUTE_ANALYSIS") {
+      console.log("[FB Gem] EXECUTE_ANALYSIS:", req.payload?.mediaType);
+      handleAnalysis(req.payload);
+      sendResponse({ success: true });
+      return true;
+    }
+  });
+} catch (_) {
+  console.warn('[FB Gem] Cannot register message listener — context invalidated.');
+}
 
 async function handleAnalysis(payload) {
   const { mediaDataUrl, mediaType, analysisPrompt } = payload;
@@ -476,7 +604,11 @@ const obs = new MutationObserver(() => {
 let rescanInterval;
 
 function init() {
-  console.log("[FB Gem] v3.4 loaded on:", window.location.href);
+  if (!isContextValid()) {
+    console.warn('[FB Gem] Extension context already invalid at init. Aborting.');
+    return;
+  }
+  console.log("[FB Gem] v3.5 loaded on:", window.location.href);
   injectStyles();
   scan();
   obs.observe(document.body, { childList: true, subtree: true });

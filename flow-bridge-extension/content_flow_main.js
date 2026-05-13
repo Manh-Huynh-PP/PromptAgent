@@ -1,34 +1,22 @@
 /**
- * content_flow_main.js — PromptAgent Flow Bridge v4
+ * content_flow_main.js
  * Injected on: labs.google/fx/tools/flow/* (world: MAIN)
- *
- * Runs in the PAGE's own JavaScript context (not isolated world).
- * This gives direct access to React Fiber internals (__reactFiber$, __reactProps$)
- * allowing us to invoke React event handlers directly — bypassing isTrusted checks.
- *
- * Communication with content_flow.js (isolated world) via window.postMessage().
  */
 
 (function () {
   "use strict";
 
-  const TAG = "[FB Main]";
+  if (window.__reactContextSyncLoaded) {
+    return;
+  }
+  window.__reactContextSyncLoaded = true;
 
-  // ── React Fiber Utilities ──────────────────────────────────────
-
-  /**
-   * Find the React Props object on a DOM element.
-   * React attaches props as `__reactProps$<random>` on DOM nodes.
-   */
   function getReactProps(el) {
     if (!el) return null;
     const key = Object.keys(el).find((k) => k.startsWith("__reactProps$"));
     return key ? el[key] : null;
   }
 
-  /**
-   * Find the React Fiber node on a DOM element.
-   */
   function getReactFiber(el) {
     if (!el) return null;
     const key = Object.keys(el).find(
@@ -39,9 +27,6 @@
     return key ? el[key] : null;
   }
 
-  /**
-   * Walk up the Fiber tree to find a state node with a specific handler.
-   */
   function findFiberHandler(fiber, handlerName, maxDepth = 15) {
     let current = fiber;
     let depth = 0;
@@ -49,7 +34,6 @@
       if (current.memoizedProps && typeof current.memoizedProps[handlerName] === "function") {
         return current.memoizedProps[handlerName];
       }
-      // Also check stateNode
       if (current.stateNode && typeof current.stateNode[handlerName] === "function") {
         return current.stateNode[handlerName];
       }
@@ -59,14 +43,10 @@
     return null;
   }
 
-  // ── Prompt Input Finder ────────────────────────────────────────
-
   function findPromptInput() {
-    // Strategy 1: Slate.js editor (Google Flow uses this)
     const slateEditor = document.querySelector('[data-slate-editor="true"]');
     if (slateEditor && isVisible(slateEditor)) return slateEditor;
 
-    // Strategy 2: contenteditable with placeholder
     const divs = document.querySelectorAll('div[contenteditable="true"]');
     for (const d of divs) {
       const ph =
@@ -76,13 +56,11 @@
       if (ph.length > 0) return d;
     }
 
-    // Strategy 3: role=textbox (usually Lexical or Draft.js)
     const textboxes = document.querySelectorAll('div[role="textbox"]');
     for (const tb of textboxes) {
       if (isVisible(tb)) return tb;
     }
 
-    // Strategy 4: any visible contenteditable near the bottom
     const allDivs = Array.from(
       document.querySelectorAll('div[contenteditable="true"]')
     );
@@ -94,7 +72,6 @@
       )[0];
     if (bottomDiv) return bottomDiv;
 
-    // Strategy 5: textarea fallback
     const tas = document.querySelectorAll("textarea");
     for (const ta of tas) {
       if (isVisible(ta)) return ta;
@@ -103,23 +80,17 @@
     return null;
   }
 
-  // ── Prompt Injection ───────────────────────────────────────────
-
-  // Rate limiting & dedup: prevent rapid successive or duplicate injections
   let lastInjectTime = 0;
   let lastPromptHash = "";
-  const MIN_INJECT_INTERVAL = 3000; // 3s minimum between injections
+  const MIN_INJECT_INTERVAL = 3000;
 
-  /**
-   * Human-like random delay (adds jitter so timing is not perfectly uniform).
-   */
+  // Must be declared before humanDelay which calls it
+  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
+
   function humanDelay(base = 100, jitter = 80) {
     return delay(base + Math.random() * jitter);
   }
 
-  /**
-   * Simple hash for dedup — prevents the same prompt from being injected twice.
-   */
   function simpleHash(str) {
     let h = 0;
     for (let i = 0; i < str.length; i++) {
@@ -128,139 +99,99 @@
     return String(h);
   }
 
-  /**
-   * Inject prompt text into Flow's React-controlled input.
-   * Primary: execCommand (works without document focus).
-   * Fallback: clipboard paste (requires focus).
-   */
   async function injectPrompt(text) {
-    // Dedup: reject identical prompt within short window
     const hash = simpleHash(text);
     const now = Date.now();
     if (hash === lastPromptHash && now - lastInjectTime < MIN_INJECT_INTERVAL) {
-      console.warn(TAG, "⚠️ Duplicate prompt rejected (same content within 3s)");
-      return { success: true, method: "dedup_skipped" };
+      return { success: true, method: "dedup" };
     }
     lastPromptHash = hash;
 
-    // Rate limit check
     if (now - lastInjectTime < MIN_INJECT_INTERVAL) {
-      console.warn(TAG, "⚠️ Rate limited — waiting...");
       await delay(MIN_INJECT_INTERVAL - (now - lastInjectTime));
     }
     lastInjectTime = Date.now();
 
     const input = findPromptInput();
     if (!input) {
-      console.error(TAG, "❌ Prompt input not found");
-      return { success: false, error: "Input not found" };
+      return { success: false, error: "not_found" };
     }
 
-    console.log(TAG, "Found input:", input.tagName, input.className?.substring(0, 60));
-    
-    // Step 1: Focus with human-like delay
     input.focus();
     await humanDelay(80, 60);
 
-    // Step 2: Select all existing content
     try {
       document.execCommand("selectAll", false, null);
-    } catch (e) {
-      console.warn(TAG, "selectAll failed", e);
-    }
+    } catch (e) {}
     await humanDelay(50, 40);
 
     let injected = false;
     let method = "";
 
-    // Method 1: beforeinput + execCommand + input (Slate.js requires all 3)
-    // - beforeinput: Slate intercepts this to update its internal model
-    // - execCommand: Actually modifies the DOM
-    // - input: Signals completion to React reconciliation
-    console.log(TAG, "Attempting execCommand injection...");
+    // 1. Try paste event first (most natural)
     try {
-      input.dispatchEvent(new InputEvent("beforeinput", {
-        inputType: "insertText",
-        data: text,
+      const dt = new DataTransfer();
+      dt.setData("text/plain", text);
+      const pasteEvent = new ClipboardEvent("paste", {
+        clipboardData: dt,
         bubbles: true,
         cancelable: true,
-      }));
-
-      const execSuccess = document.execCommand("insertText", false, text);
-
-      input.dispatchEvent(new InputEvent("input", {
-        inputType: "insertText",
-        data: text,
-        bubbles: true,
-      }));
-
-      if (execSuccess) {
-        console.log(TAG, "✅ execCommand + Slate events completed.");
+        composed: true,
+      });
+      input.dispatchEvent(pasteEvent);
+      
+      await humanDelay(100, 50);
+      const currentText = input.textContent || input.innerText || "";
+      if (currentText.includes(text.substring(0, 30))) {
         injected = true;
-        method = "execcommand";
+        method = "clip";
       }
-    } catch (e) {
-      console.warn(TAG, "execCommand failed:", e);
-    }
+    } catch (e) {}
 
-    // Method 2: Clipboard Paste fallback (requires document focus)
-    if (!injected && document.hasFocus()) {
-      console.log(TAG, "Attempting clipboard paste fallback...");
+    // 2. Fallback to execCommand if clipboard fails
+    if (!injected) {
       try {
-        await navigator.clipboard.writeText(text);
-        await humanDelay(30, 20);
-
-        const dt = new DataTransfer();
-        dt.setData("text/plain", text);
-        const pasteEvent = new ClipboardEvent("paste", {
-          clipboardData: dt,
+        input.dispatchEvent(new InputEvent("beforeinput", {
+          inputType: "insertText",
+          data: text,
           bubbles: true,
           cancelable: true,
-          composed: true,
-        });
-        input.dispatchEvent(pasteEvent);
+        }));
 
-        await humanDelay(100, 50);
-        const currentText = input.textContent || input.innerText || "";
-        if (currentText.includes(text.substring(0, 30))) {
-          console.log(TAG, "✅ Clipboard paste accepted.");
+        const execSuccess = document.execCommand("insertText", false, text);
+
+        input.dispatchEvent(new InputEvent("input", {
+          inputType: "insertText",
+          data: text,
+          bubbles: true,
+        }));
+
+        if (execSuccess) {
           injected = true;
-          method = "clipboard_paste";
+          method = "execcmd";
         }
-      } catch (e) {
-        console.warn(TAG, "Clipboard paste failed:", e);
-      }
+      } catch (e) {}
     }
 
-    // Method 3: Direct innerHTML (last resort)
+    // Removed clipboard redundant fallback here since we moved it to primary
+
     if (!injected) {
-      console.log(TAG, "Falling back to direct innerHTML...");
       input.innerHTML = `<span data-slate-string="true">${text}</span>`;
       input.dispatchEvent(new Event("input", { bubbles: true }));
       injected = true;
-      method = "innerhtml";
+      method = "html";
     }
 
-    // Force cursor to end
     try {
       const sel = window.getSelection();
       sel.collapseToEnd();
     } catch (e) {}
 
-    // Final human-like pause before returning
     await humanDelay(100, 80);
 
-    console.log(TAG, `✅ Prompt injection completed via ${method}`);
     return { success: injected, method };
   }
 
-  // ── Utils ─────────────────────────────────────────
-
-  const delay = (ms) => new Promise((res) => setTimeout(res, ms));
-
-  /**
-   * Check if an element is visible on screen.
-   */
   function isVisible(el) {
     if (!el || el.offsetWidth === 0 && el.offsetHeight === 0) return false;
     const style = window.getComputedStyle(el);
@@ -271,43 +202,52 @@
     );
   }
 
-  /**
-   * Find the submit/generate button on Flow.
-   * Looks for the arrow_forward icon nearest to the active prompt input,
-   * ensuring we click the correct button for the current mode (Image/Video).
-   */
   function findSubmitButton() {
-    // Find the currently active prompt input first
     const activeInput = findPromptInput();
     
-    // Collect all visible arrow_forward buttons
-    const candidates = [];
+    const candidateBtns = [];
+
+    // Tìm tất cả các button có text hợp lệ
+    const allBtns = Array.from(document.querySelectorAll('button'));
+    for (const btn of allBtns) {
+      if (!isVisible(btn)) continue;
+      const txt = btn.textContent.trim().toLowerCase();
+      if (txt.includes('create') || txt.includes('generate') || txt.includes('send') || txt.includes('submit') || txt.includes('tạo') || txt.includes('gửi')) {
+        candidateBtns.push(btn);
+      }
+    }
+
+    // Tìm qua icon nếu chưa thấy hoặc bổ sung thêm
     const icons = document.querySelectorAll('i.google-symbols');
     for (const icon of icons) {
       if (icon.textContent.trim() === 'arrow_forward') {
         const btn = icon.closest('button');
         const target = btn && isVisible(btn) ? btn : (isVisible(icon) ? icon : null);
-        if (target) candidates.push(target);
+        if (target && !candidateBtns.includes(target)) candidateBtns.push(target);
       }
     }
 
-    if (candidates.length === 0) {
-      // Fallback: aria-label selectors
-      const selectors = ['button[aria-label*="Send"]', 'button[aria-label*="Generate"]', 'button[aria-label*="Submit"]'];
-      for (const sel of selectors) {
-        const el = document.querySelector(sel);
-        if (el && isVisible(el)) return el;
-      }
-      return null;
+    // Các selectors dự phòng
+    const selectors = [
+      'button[aria-label*="Send" i]', 
+      'button[aria-label*="Generate" i]', 
+      'button[aria-label*="Submit" i]',
+      'button[aria-label*="Tạo" i]',
+      'button[aria-label*="Gửi" i]',
+      '.mat-mdc-tooltip-trigger.mdc-icon-button'
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && isVisible(el) && !candidateBtns.includes(el)) candidateBtns.push(el);
     }
 
-    if (candidates.length === 1) return candidates[0];
+    if (candidateBtns.length === 0) return null;
+    if (candidateBtns.length === 1) return candidateBtns[0];
 
-    // Multiple candidates: pick the one sharing the closest common ancestor with the input,
-    // or the one nearest by vertical position.
+    // Có nhiều ứng viên, ưu tiên nút nào gần input nhất
     if (activeInput) {
       const inputRect = activeInput.getBoundingClientRect();
-      candidates.sort((a, b) => {
+      candidateBtns.sort((a, b) => {
         const aRect = a.getBoundingClientRect();
         const bRect = b.getBoundingClientRect();
         const aDist = Math.abs(aRect.top - inputRect.top) + Math.abs(aRect.left - inputRect.left);
@@ -316,100 +256,264 @@
       });
     }
 
-    return candidates[0];
+    return candidateBtns[0];
   }
 
-  // ── Message Handler (from isolated-world content_flow.js) ──────
+  // === CREDIT TRACKING SYSTEM ===
+  let lastReportedTime = 0;
+  let _suppressClickCount = 0; // counter: how many upcoming click events to suppress
+
+  function reportUsage(cost, actionType) {
+    const now = Date.now();
+    // Prevent double counting within 2 seconds
+    if (now - lastReportedTime < 2000) {
+      console.log(`[PromptAgent] ⏭️ Debounced: ${cost} credits (${actionType})`);
+      return;
+    }
+    lastReportedTime = now;
+    window.postMessage({ type: "sys_report_usage", cost, actionType }, "*");
+    console.log(`[PromptAgent] ✅ Deducted ${cost} credits for ${actionType}`);
+  }
+
+  // ── Credit: model → cost lookup (specificity order: longest first) ──
+  const MODEL_LOOKUP = [
+    ['lite lower priority', 0],
+    ['quality', 100],
+    ['fast', 10],
+    ['lite', 5],
+    ['imagen', 10],
+  ];
+
+  // Persistent cache: updated whenever model selection changes
+  let _cachedModelCost = 10; // default
+  let _cachedModelName = '(unknown)';
+
+  function detectModelFromText(txt) {
+    const t = txt.toLowerCase().trim();
+    for (const [model, cost] of MODEL_LOOKUP) {
+      if (t.includes(model)) return { model, cost };
+    }
+    return null;
+  }
+
+  function scanAndCacheModel() {
+    // 1. Radix: look for checked/selected menu items (when dropdown is open)
+    const radixChecked = document.querySelectorAll(
+      '[role="menuitemradio"][data-state="checked"], [role="option"][aria-selected="true"], [role="menuitem"][aria-checked="true"]'
+    );
+    for (const el of radixChecked) {
+      const txt = el.textContent;
+      const match = detectModelFromText(txt);
+      if (match) {
+        if (_cachedModelName !== match.model) {
+          _cachedModelCost = match.cost;
+          _cachedModelName = match.model;
+          console.log(`[PromptAgent] 📌 Model set (checked attr): "${txt.trim()}" → ${match.cost} credits`);
+        }
+        return;
+      }
+    }
+
+    // 2. Any visible button/trigger that contains model keywords (dropdown closed state)
+    // Require 'veo' or 'imagen' context to avoid matching unrelated buttons with text like "Fast"
+    const candidates = document.querySelectorAll(
+      'button, [role="combobox"], [role="button"], [aria-haspopup]'
+    );
+    for (const el of candidates) {
+      if (!isVisible(el)) continue;
+      const txt = el.textContent.trim();
+      if (txt.length > 80 || txt.length < 2) continue;
+      const txtLower = txt.toLowerCase();
+      if (!txtLower.includes('veo') && !txtLower.includes('imagen')) continue;
+      const match = detectModelFromText(txt);
+      if (match) {
+        if (_cachedModelName !== match.model) {
+          _cachedModelCost = match.cost;
+          _cachedModelName = match.model;
+          console.log(`[PromptAgent] 📌 Model set (visible btn): "${txt}" → ${match.cost} credits`);
+        }
+        return;
+      }
+    }
+  }
+
+  // Watch for DOM changes — debounced to avoid hammering on every React re-render
+  let _modelWatchDebounce = null;
+  const _modelWatcher = new MutationObserver(() => {
+    if (_modelWatchDebounce) clearTimeout(_modelWatchDebounce);
+    _modelWatchDebounce = setTimeout(scanAndCacheModel, 300);
+  });
+  _modelWatcher.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-state', 'aria-checked', 'aria-selected'] });
+
+  // Initial scan
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', scanAndCacheModel);
+  } else {
+    scanAndCacheModel();
+  }
+
+  function getGenerateCost() {
+    // Re-scan now (dropdown might just have been clicked)
+    scanAndCacheModel();
+
+    // DEBUG: dump all visible elements with model keywords to help diagnose
+    const debugEls = Array.from(document.querySelectorAll('*')).filter(el => {
+      if (!isVisible(el)) return false;
+      const txt = el.textContent.trim();
+      return txt.length < 100 && MODEL_LOOKUP.some(([m]) => txt.toLowerCase().includes(m));
+    });
+    if (debugEls.length > 0) {
+      console.log('[PromptAgent] 🔍 DEBUG visible model elements:',
+        debugEls.map(el => `<${el.tagName.toLowerCase()}> "${el.textContent.trim()}"`)
+      );
+    } else {
+      console.warn('[PromptAgent] 🔍 DEBUG: No visible model elements found!');
+    }
+
+    console.log(`[PromptAgent] 💰 Using cached model: "${_cachedModelName}" → ${_cachedModelCost} credits`);
+    return _cachedModelCost;
+  }
+
+
+
+  // Intercept clicks to capture manual & auto generations and upscales
+  document.addEventListener('click', (e) => {
+    // Skip synthetic clicks dispatched by THIS extension to avoid double counting
+    if (_suppressClickCount > 0) {
+      _suppressClickCount--;
+      return;
+    }
+
+    // ── Check if it's an upscale action first ──
+    let target = e.target;
+    let isDisabled = false;
+    let tempTarget = target;
+    while (tempTarget && tempTarget !== document.body) {
+      if (tempTarget.disabled || tempTarget.getAttribute('aria-disabled') === 'true' || tempTarget.getAttribute('data-disabled') === 'true') {
+        isDisabled = true;
+        break;
+      }
+      tempTarget = tempTarget.parentElement;
+    }
+
+    while (target && target !== document.body) {
+      const txt = target.textContent || "";
+      // Match: "Upscaled · 50 credits" or "4K · 50 credits"
+      const upMatch = txt.match(/(?:Upscaled|4K).*?(\d+)\s+credits/i);
+      if (upMatch && txt.length < 60) {
+        if (!isDisabled) {
+          const cost = parseInt(upMatch[1], 10);
+          reportUsage(cost, "Upscale");
+        }
+        return;
+      }
+      target = target.parentElement;
+    }
+
+    // ── Check if it's the main submit/generate button ──
+    const submitBtn = findSubmitButton();
+    if (submitBtn && (submitBtn === e.target || submitBtn.contains(e.target))) {
+      if (submitBtn.disabled || submitBtn.getAttribute('aria-disabled') === 'true' || submitBtn.getAttribute('data-disabled') === 'true') {
+        return;
+      }
+      const cost = getGenerateCost();
+      if (cost >= 0) { // allow 0-cost (Lite lower priority)
+        reportUsage(cost, "Generate");
+      }
+    }
+  }, true); // capture phase
+  // ==============================
+
 
   window.addEventListener("message", async (event) => {
-    // Only accept messages from the same window (our isolated-world script)
     if (event.source !== window) return;
     const data = event.data;
-    if (!data || !data.type?.startsWith("FB_")) return;
+    if (!data || data.type !== "sys_cmd_req") return;
 
-    console.log(TAG, "Received:", data.type);
+    let promptResult = { success: false };
+    let autoSubmitSuccess = false;
 
-    if (data.type === "FB_INJECT_PROMPT") {
-      let promptResult = { success: false };
-      let autoSubmitSuccess = false;
+    if (data.prompt) {
+      promptResult = await injectPrompt(data.prompt);
+    } else {
+      promptResult = { success: false, error: "empty" };
+    }
 
-      if (data.prompt) {
-        promptResult = await injectPrompt(data.prompt);
-      } else {
-        console.error(TAG, "❌ Received empty prompt payload in FB_INJECT_PROMPT");
-        promptResult = { success: false, error: "Empty prompt payload" };
+    if (data.autoSubmit && promptResult.success) {
+      await humanDelay(1500, 500);
+      let submitBtn = findSubmitButton();
+      
+      // Chờ nếu nút submit đang bị disable
+      for(let i=0; i<4; i++) {
+         if (submitBtn && !submitBtn.disabled && submitBtn.getAttribute('aria-disabled') !== 'true' && submitBtn.getAttribute('data-disabled') !== 'true') break;
+         await humanDelay(500, 200);
+         submitBtn = findSubmitButton() || submitBtn;
       }
 
-      // Auto-submit: click the Generate button from MAIN world (React context)
-      if (data.autoSubmit && promptResult.success) {
-        await humanDelay(1200, 500); // Human-like pause before clicking Generate
-        const submitBtn = findSubmitButton();
-        if (submitBtn) {
-          try {
-            // Flow's onClick handler checks event.isTrusted which is always false
-            // for programmatic events. Use Proxy to intercept and return true.
-            const rect = submitBtn.getBoundingClientRect();
-            const nativeEvent = new MouseEvent('click', {
-              bubbles: true, cancelable: true, view: window,
-              clientX: rect.left + rect.width / 2,
-              clientY: rect.top + rect.height / 2,
-            });
+      if (submitBtn) {
+        try {
+          const rect = submitBtn.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
 
-            // Create a trusted-looking event via Proxy
-            const createTrustedProxy = (evt) => new Proxy(evt, {
-              get(target, prop) {
-                if (prop === 'isTrusted') return true;
-                if (prop === 'nativeEvent') return createTrustedProxy(target);
-                if (prop === 'isDefaultPrevented') return () => false;
-                if (prop === 'isPropagationStopped') return () => false;
-                if (prop === 'persist') return () => {};
-                const val = Reflect.get(target, prop);
-                return typeof val === 'function' ? val.bind(target) : val;
-              }
-            });
+          const eventOpts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy, pointerId: 1 };
+          
+          // Hover sequence (no click → no credit trigger)
+          submitBtn.dispatchEvent(new PointerEvent('pointerover', eventOpts));
+          submitBtn.dispatchEvent(new PointerEvent('pointerenter', eventOpts));
+          submitBtn.dispatchEvent(new MouseEvent('mouseover', eventOpts));
+          submitBtn.dispatchEvent(new MouseEvent('mouseenter', eventOpts));
+          await humanDelay(20, 10);
 
-            const trustedEvent = createTrustedProxy(nativeEvent);
+          // Get cost BEFORE click (model info still available)
+          const autoCost = getGenerateCost();
 
-            // Call React onClick directly via fiber props
-            const props = getReactProps(submitBtn);
-            if (props && typeof props.onClick === 'function') {
-              props.onClick(trustedEvent);
-              console.log(TAG, "✅ Auto-submit via React onClick with trusted Proxy");
-              autoSubmitSuccess = true;
-            } else {
-              // Walk up to find onClick on a parent fiber
-              const fiber = getReactFiber(submitBtn);
-              const handler = fiber ? findFiberHandler(fiber, 'onClick') : null;
-              if (handler) {
-                handler(trustedEvent);
-                console.log(TAG, "✅ Auto-submit via Fiber handler with trusted Proxy");
-                autoSubmitSuccess = true;
-              } else {
-                // Last resort: dispatch event on the element
-                submitBtn.dispatchEvent(nativeEvent);
-                console.log(TAG, "⚠️ Auto-submit fallback: dispatchEvent (may not work)");
-                autoSubmitSuccess = true;
-              }
-            }
-          } catch (e) {
-            console.error(TAG, "❌ Auto-submit click failed:", e);
+          // Suppress BOTH click events: dispatchEvent(click) + .click()
+          _suppressClickCount = 2;
+
+          // Click sequence
+          submitBtn.dispatchEvent(new PointerEvent('pointerdown', eventOpts));
+          submitBtn.dispatchEvent(new MouseEvent('mousedown', eventOpts));
+          await humanDelay(50, 30);
+          submitBtn.dispatchEvent(new PointerEvent('pointerup', eventOpts));
+          submitBtn.dispatchEvent(new MouseEvent('mouseup', eventOpts));
+          submitBtn.dispatchEvent(new MouseEvent('click', eventOpts));
+          try { submitBtn.click(); } catch(e) { _suppressClickCount = Math.max(0, _suppressClickCount - 1); }
+
+          // Report credit directly (both listener clicks are suppressed)
+          if (autoCost >= 0) {
+            reportUsage(autoCost, "Generate (Auto)");
           }
-        } else {
-          console.warn(TAG, "⚠️ Submit button not found for auto-submit");
+
+          autoSubmitSuccess = true;
+        } catch (e) {
+          _suppressClickCount = 0; // reset on error
         }
       }
 
-      window.postMessage(
-        {
-          type: "FB_RESULT",
-          action: "prompt",
-          prompt: promptResult,
-          autoSubmitSuccess,
-        },
-        "*"
-      );
-    }
-  });
 
-  console.log(TAG, "✅ MAIN world script loaded (React Fiber access enabled, Settings injection removed)");
+      // Fallback: Also dispatch Enter key on the active input as some forms listen to it
+      try {
+        const activeInput = findPromptInput();
+        if (activeInput) {
+          const kbEvent = new KeyboardEvent('keydown', {
+              key: 'Enter', code: 'Enter', keyCode: 13, which: 13,
+              bubbles: true, cancelable: true, composed: true
+          });
+          activeInput.dispatchEvent(kbEvent);
+        }
+      } catch (e) {}
+    }
+
+    window.postMessage(
+      {
+        type: "sys_cmd_res",
+        action: "prompt",
+        prompt: promptResult,
+        autoSubmitSuccess,
+      },
+      "*"
+    );
+  });
 })();
+
